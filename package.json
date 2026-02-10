@@ -4,7 +4,7 @@
   "description": "Simplified WireGuard Peer Management Tool",
   "main": "bin/wgm",
   "bin": {
-    "wgm": "./bin/wgm"
+    "wgm": "bin/wgm"
   },
   "type": "module",
   "scripts": {
@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/justyining/wgm"
+    "url": "git+https://github.com/justyining/wgm.git"
   },
   "bugs": {
     "url": "https://github.com/justyining/wgm/issues"
