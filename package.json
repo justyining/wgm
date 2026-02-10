@@ -1,0 +1,31 @@
+{
+  "name": "@wgm/wgm",
+  "version": "1.0.0",
+  "description": "Simplified WireGuard Peer Management Tool",
+  "main": "bin/wgm",
+  "bin": {
+    "wgm": "./bin/wgm"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node bin/wgm"
+  },
+  "keywords": ["wireguard", "vpn", "peer", "cli", "wireguard-manager"],
+  "license": "MIT",
+  "dependencies": {
+    "inquirer": "^9.2.0",
+    "qrcode": "^1.5.3",
+    "ini": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wgm/wgm"
+  },
+  "bugs": {
+    "url": "https://github.com/wgm/wgm/issues"
+  },
+  "homepage": "https://github.com/wgm/wgm#readme"
+}

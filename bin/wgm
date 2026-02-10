@@ -1,0 +1,400 @@
+#!/usr/bin/env node
+
+/**
+ * wgm - Simplified WireGuard Peer Management Tool
+ *
+ * A lightweight CLI tool for managing WireGuard peers with interactive prompts.
+ */
+
+import { execSync } from 'child_process';
+import inquirer from 'inquirer';
+import QRCode from 'qrcode';
+import { parse, stringify } from 'ini';
+import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const CONFIG_DIR = '/etc/wireguard';
+
+let INTERFACE = null;
+let CONFIG_PATH = null;
+
+/**
+ * Get WireGuard interface from args, env, or auto-detect
+ * @returns {Promise<string>} - Interface name
+ */
+async function getInterface() {
+  // Check CLI arg: -i <name>
+  const argIndex = process.argv.indexOf('-i');
+  if (argIndex !== -1 && process.argv[argIndex + 1]) {
+    return process.argv[argIndex + 1];
+  }
+
+  // List available configs
+  try {
+    const output = execSync(`ls ${CONFIG_DIR}/*.conf 2>/dev/null | xargs -n1 basename`, { encoding: 'utf-8' });
+    const configs = output.trim().split('\n').filter(c => c && c.endsWith('.conf'));
+    if (configs.length === 0) {
+      console.log('[ERROR] No WireGuard configs found in ' + CONFIG_DIR);
+      process.exit(1);
+    }
+    const names = configs.map(c => c.replace('.conf', ''));
+    if (names.length === 1) {
+      return names[0];
+    }
+    const { interface: selected } = await inquirer.prompt([{
+      type: 'list',
+      name: 'interface',
+      message: 'Select WireGuard interface:',
+      choices: names
+    }]);
+    return selected;
+  } catch {
+    console.log('[ERROR] Cannot read ' + CONFIG_DIR);
+    process.exit(1);
+  }
+}
+
+/**
+ * Initialize interface and config path
+ */
+async function init() {
+  if (!INTERFACE) {
+    INTERFACE = await getInterface();
+    CONFIG_PATH = join(CONFIG_DIR, `${INTERFACE}.conf`);
+  }
+}
+
+/**
+ * Validate WireGuard public key format
+ * @param {string} key - Public key to validate
+ * @returns {boolean} - Whether the key is valid
+ */
+function validateKey(key) {
+  return /^[A-Za-z0-9+/]{43}=?$/.test(key.trim());
+}
+
+/**
+ * Get server's public key from config
+ * @returns {string|null} - Server public key or null if not found
+ */
+function getServerPublicKey() {
+  try {
+    const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
+    const privKey = config.Interface?.PrivateKey;
+    if (privKey) {
+      return execSync(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
+    }
+  } catch (e) {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Get server endpoint (IP:Port)
+ * @returns {string|null} - Endpoint string or null
+ */
+function getEndpoint() {
+  try {
+    const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
+    const port = config.Interface?.ListenPort || '51820';
+    try {
+      const ip = execSync('curl -s ifconfig.me', { encoding: 'utf-8', timeout: 3000 }).trim();
+      return `${ip}:${port}`;
+    } catch {
+      return `YOUR_SERVER_IP:${port}`;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get next available IP address from the configured network range
+ * @returns {string|null} - Available IP with CIDR or null
+ */
+function getAvailableIP() {
+  const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
+  const network = config.Interface?.Address;
+
+  if (!network) return null;
+
+  const [baseIp, cidr] = network.split('/');
+  const prefix = baseIp.split('.').slice(0, 3).join('.');
+
+  // Collect used IPs
+  const used = new Set();
+  for (const [key, val] of Object.entries(config)) {
+    if (key.startsWith('Peer') && val.AllowedIPs) {
+      const ip = val.AllowedIPs.split('/')[0];
+      const octets = ip.split('.');
+      if (octets.length === 4) {
+        const lastOctet = parseInt(octets[3]);
+        if (!isNaN(lastOctet)) used.add(lastOctet);
+      }
+    }
+  }
+
+  // Find first available IP (starting from .2)
+  for (let i = 2; i < 255; i++) {
+    if (!used.has(i)) {
+      return `${prefix}.${i}/${cidr}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Save configuration and reload WireGuard
+ * @param {Object} config - Parsed INI config object
+ */
+function saveConfig(config) {
+  // Create backup
+  const backupPath = `${CONFIG_PATH}.backup.${Date.now()}`;
+  copyFileSync(CONFIG_PATH, backupPath);
+
+  // Save new config
+  writeFileSync(CONFIG_PATH, stringify(config, { section: '=' }));
+
+  // Reload WireGuard
+  try {
+    execSync(`wg syncconf ${INTERFACE} <(wg-quick strip ${INTERFACE})`, { stdio: 'pipe' });
+  } catch {
+    execSync(`wg-quick down ${INTERFACE} 2>/dev/null; wg-quick up ${INTERFACE}`, { stdio: 'inherit' });
+  }
+}
+
+/**
+ * Add a new peer interactively
+ */
+async function addPeer() {
+  await init();
+  const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
+
+  // Prompt for peer name
+  const { name } = await inquirer.prompt([{
+    type: 'input',
+    name: 'name',
+    message: 'Peer name:',
+    validate: input => input.length > 0 || 'Name cannot be empty'
+  }]);
+
+  // Check for duplicate
+  if (config[`Peer #${name}`]) {
+    console.log(`[ERROR] Peer "${name}" already exists`);
+    return;
+  }
+
+  // Choose key method
+  const { method } = await inquirer.prompt([{
+    type: 'list',
+    name: 'method',
+    message: 'Key generation method:',
+    choices: [
+      { name: 'I provide the client public key (recommended)', value: 'manual' },
+      { name: 'Auto-generate key pair', value: 'auto' }
+    ]
+  }]);
+
+  let publicKey, privateKey;
+  if (method === 'manual') {
+    console.log('\nOn the client device, run:');
+    console.log('  wg genkey | tee privatekey | wg pubkey');
+    console.log('Send the PUBLIC KEY to the server admin.\n');
+
+    const { key } = await inquirer.prompt([{
+      type: 'input',
+      name: 'key',
+      message: 'Paste client public key:',
+      validate: input => validateKey(input) || 'Invalid key format (44 character base64)'
+    }]);
+    publicKey = key.trim();
+  } else {
+    privateKey = execSync('wg genkey', { encoding: 'utf-8' }).trim();
+    publicKey = execSync(`echo "${privateKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
+  }
+
+  // Get available IP
+  const ip = getAvailableIP();
+  if (!ip) {
+    console.log('[ERROR] Unable to get available IP');
+    return;
+  }
+  console.log(`Assigned IP: ${ip}`);
+
+  // Get server's VPN IP for AllowedIPs
+  let serverIp = 'SERVER_VPN_IP';
+  try {
+    const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
+    if (config.Interface?.Address) {
+      serverIp = config.Interface.Address.split('/')[0];
+    }
+  } catch {}
+
+  const { allowedIPs } = await inquirer.prompt([{
+    type: 'input',
+    name: 'allowedIPs',
+    message: 'AllowedIPs (traffic to route through VPN):',
+    default: `${serverIp}/32`,
+    validate: input => input.length > 0 || 'AllowedIPs cannot be empty'
+  }]);
+
+  // Save config
+  config[`Peer #${name}`] = {
+    PublicKey: publicKey,
+    AllowedIPs: clientIp
+  };
+  saveConfig(config);
+  console.log(`[OK] Peer "${name}" added successfully`);
+
+  // Generate client config
+  const serverPubKey = getServerPublicKey();
+  const endpoint = getEndpoint();
+  const dns = config.Interface?.DNS || '1.1.1.1, 8.8.8.8';
+
+  const clientConfig = `[Interface]
+${privateKey ? `PrivateKey = ${privateKey}
+` : ''}Address = ${ip}
+DNS = ${dns}
+
+[Peer]
+PublicKey = ${serverPubKey}
+AllowedIPs = ${allowedIPs}
+Endpoint = ${endpoint}
+PersistentKeepalive = 25`;
+
+  // Generate client config
+  const serverPubKey = getServerPublicKey();
+  const endpoint = getEndpoint();
+  const dns = config.Interface?.DNS || '1.1.1.1, 8.8.8.8';
+
+  const clientConfig = `[Interface]
+${privateKey ? `PrivateKey = ${privateKey}
+` : ''}Address = ${ip}
+DNS = ${dns}
+
+[Peer]
+PublicKey = ${serverPubKey}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = ${endpoint}
+PersistentKeepalive = 25`;
+
+  // Save to file
+  const filename = `${name}.conf`;
+  writeFileSync(filename, clientConfig);
+  console.log(`[FILE] Config saved: ${filename}`);
+
+  // Generate QR code
+  try {
+    const qr = await QRCode.toString(clientConfig, { type: 'terminal', small: true });
+    console.log('\n[QR] QR Code:');
+    console.log(qr);
+  } catch {}
+
+  if (privateKey) {
+    console.log('\n[WARN] Private key generated. Keep it safe!');
+  }
+}
+
+/**
+ * List all peers with their status
+ */
+async function listPeers() {
+  await init();
+  const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
+
+  console.log(`\n Peers on ${INTERFACE}:\n`);
+
+  // Get online status
+  let onlinePeers = new Set();
+  try {
+    const status = execSync(`wg show ${INTERFACE}`, { encoding: 'utf-8' });
+    onlinePeers = new Set(status.match(/peer: ([^\s]+)/g)?.map(p => p.replace('peer: ', '')) || []);
+  } catch {}
+
+  const peers = Object.entries(config).filter(([k]) => k.startsWith('Peer'));
+
+  if (peers.length === 0) {
+    console.log('  No peers configured');
+    return;
+  }
+
+  for (const [key, val] of peers) {
+    const name = key.replace('Peer #', '');
+    const isOnline = onlinePeers.has(val.PublicKey);
+    console.log(`  ${isOnline ? '[ONLINE]' : '[OFFLINE]'} ${name}  ${val.AllowedIPs}`);
+  }
+  console.log('');
+}
+
+/**
+ * Remove a peer by name
+ * @param {string} name - Peer name to remove
+ */
+async function removePeer(name) {
+  await init();
+  const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
+  const peerKey = Object.keys(config).find(k => k === `Peer #${name}` || config[k]?.PublicKey === name);
+
+  if (!peerKey) {
+    console.log(`[ERROR] Peer not found: ${name}`);
+    return;
+  }
+
+  delete config[peerKey];
+  saveConfig(config);
+  console.log(`[OK] Removed: ${name}`);
+}
+
+/**
+ * Show help message
+ */
+function showHelp() {
+  console.log(`
+  wgm - Simplified WireGuard Peer Management
+
+  Usage:
+    wgm add          Add a new peer interactively
+    wgm list         List all peers
+    wgm rm <name>    Remove a peer
+    wgm -i <name>    Specify interface (default: auto-detect)
+
+  Examples:
+    wgm add
+    wgm -i wg1 add
+    wgm list
+    wgm rm laptop
+
+  Requirements:
+    - WireGuard installed
+    - Node.js >= 16
+    - Root privileges
+  `);
+}
+
+/**
+ * Main entry point
+ */
+async function main() {
+  const cmd = process.argv[2];
+
+  if (cmd === 'add') {
+    await addPeer();
+  } else if (cmd === 'list' || cmd === 'ls') {
+    await listPeers();
+  } else if (cmd === 'rm' || cmd === 'remove') {
+    const name = process.argv[3];
+    if (name) await removePeer(name);
+    else console.log('Usage: wgm rm <name>');
+  } else if (cmd === '-h' || cmd === '--help' || cmd === '-v' || cmd === '--version') {
+    showHelp();
+  } else {
+    showHelp();
+  }
+}
+
+main();
