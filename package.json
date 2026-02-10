@@ -1,5 +1,5 @@
 {
-  "name": "@wgm/wgm",
+  "name": "wgm",
   "version": "1.0.0",
   "description": "Simplified WireGuard Peer Management Tool",
   "main": "bin/wgm",
@@ -22,10 +22,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/wgm/wgm"
+    "url": "https://github.com/justyining/wgm"
   },
   "bugs": {
-    "url": "https://github.com/wgm/wgm/issues"
+    "url": "https://github.com/justyining/wgm/issues"
   },
-  "homepage": "https://github.com/wgm/wgm#readme"
+  "homepage": "https://github.com/justyining/wgm#readme"
 }
