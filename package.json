@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "ini": "^3.0.1",
-    "inquirer": "^8.2.6",
+    "inquirer": "^8.0.0",
     "qrcode": "^1.5.3"
   },
   "engines": {
