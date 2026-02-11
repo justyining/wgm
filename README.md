@@ -22,7 +22,8 @@ npm install -g wgm
 Or use with npx (no installation):
 
 ```bash
-sudo npx wgm add
+# If npx is not in root's PATH, use full path:
+sudo $(which npx) wgm add
 ```
 
 ## Requirements
@@ -36,7 +37,11 @@ sudo npx wgm add
 ### Add a new peer
 
 ```bash
-sudo wgm add
+# If installed globally
+sudo $(which wgm) add
+
+# Or use full path
+sudo /usr/local/bin/wgm add
 ```
 
 Interactive workflow:
@@ -58,13 +63,13 @@ Shows online/offline status and assigned IPs.
 ### Remove a peer
 
 ```bash
-sudo wgm rm <name>
+sudo $(which wgm) rm <name>
 ```
 
 ## Example
 
 ```bash
-$ sudo wgm add
+$ sudo $(which wgm) add
 ? Peer name: macbook
 ? Key generation method: I provide the client public key (recommended)
 
