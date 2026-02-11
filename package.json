@@ -2,13 +2,19 @@
   "name": "wgm",
   "version": "1.0.4",
   "description": "Simplified WireGuard Peer Management Tool",
-  "main": "bin/wgm",
+  "main": "dist/index.js",
   "bin": {
-    "wgm": "bin/wgm"
+    "wgm": "dist/index.js"
   },
   "type": "module",
+  "files": [
+    "dist/",
+    "README.md"
+  ],
   "scripts": {
-    "start": "node bin/wgm"
+    "start": "node bin/wgm",
+    "build": "ncc build bin/wgm -o dist",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "wireguard",
@@ -18,6 +24,9 @@
     "wireguard-manager"
   ],
   "license": "MIT",
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.0"
+  },
   "dependencies": {
     "inquirer": "^9.2.0",
     "qrcode": "^1.5.3",

@@ -267,22 +267,6 @@ AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
 
-  // Generate client config
-  const serverPubKey = getServerPublicKey();
-  const endpoint = getEndpoint();
-  const dns = config.Interface?.DNS || '1.1.1.1, 8.8.8.8';
-
-  const clientConfig = `[Interface]
-${privateKey ? `PrivateKey = ${privateKey}
-` : ''}Address = ${ip}
-DNS = ${dns}
-
-[Peer]
-PublicKey = ${serverPubKey}
-AllowedIPs = 0.0.0.0/0, ::/0
-Endpoint = ${endpoint}
-PersistentKeepalive = 25`;
-
   // Save to file
   const filename = `${name}.conf`;
   writeFileSync(filename, clientConfig);
