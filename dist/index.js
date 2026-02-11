@@ -36907,7 +36907,9 @@ const __dirname = (0,path__WEBPACK_IMPORTED_MODULE_6__.dirname)(__filename);
 if (process.getuid && process.getuid() !== 0) {
   console.log('[INFO] Requesting sudo privileges...');
   const args = process.argv.slice(2);
-  const child = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.spawn)('sudo', ['-E', 'node', __filename, ...args], {
+  // Use absolute path to ensure same Node.js version
+  const nodePath = process.execPath;
+  const child = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.spawn)('sudo', ['-E', nodePath, __filename, ...args], {
     stdio: 'inherit',
     env: process.env
   });
