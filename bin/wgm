@@ -162,7 +162,7 @@ function saveConfig(config) {
 
   // Reload WireGuard
   try {
-    execSync(`wg syncconf ${INTERFACE} <(wg-quick strip ${INTERFACE})`, { stdio: 'pipe' });
+    execSync(`wg syncconf ${INTERFACE} <(wg-quick strip ${INTERFACE})`, { shell: 'bash', stdio: 'pipe' });
   } catch {
     execSync(`wg-quick down ${INTERFACE} 2>/dev/null; wg-quick up ${INTERFACE}`, { stdio: 'inherit' });
   }
@@ -246,7 +246,7 @@ async function addPeer() {
   // Save config
   config[`Peer #${name}`] = {
     PublicKey: publicKey,
-    AllowedIPs: clientIp
+    AllowedIPs: ip.replace(/\/\d+$/, '') + '/32'
   };
   saveConfig(config);
   console.log(`[OK] Peer "${name}" added successfully`);
