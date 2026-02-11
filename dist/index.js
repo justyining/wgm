@@ -37046,7 +37046,11 @@ function getAvailableIP() {
   const config = (0,ini__WEBPACK_IMPORTED_MODULE_3__.parse)((0,fs__WEBPACK_IMPORTED_MODULE_4__.readFileSync)(CONFIG_PATH, 'utf-8'));
   const network = config.Interface && config.Interface.Address;
 
-  if (!network) return null;
+  if (!network) {
+    console.log('[ERROR] No Address found in [Interface] section of ' + CONFIG_PATH);
+    console.log('[HINT] Ensure your config has: Address = 10.0.0.1/24');
+    return null;
+  }
 
   const [baseIp, cidr] = network.split('/');
   const prefix = baseIp.split('.').slice(0, 3).join('.');
