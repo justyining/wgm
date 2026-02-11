@@ -37058,8 +37058,16 @@ function saveConfig(config) {
   const backupPath = `${CONFIG_PATH}.backup.${Date.now()}`;
   (0,fs__WEBPACK_IMPORTED_MODULE_4__.copyFileSync)(CONFIG_PATH, backupPath);
 
-  // Save new config
-  (0,fs__WEBPACK_IMPORTED_MODULE_4__.writeFileSync)(CONFIG_PATH, (0,ini__WEBPACK_IMPORTED_MODULE_3__.stringify)(config, { section: '=' }));
+  // Save new config (manual INI format for compatibility)
+  const sections = [];
+  for (const [key, val] of Object.entries(config)) {
+    sections.push(`[${key}]`);
+    for (const [k, v] of Object.entries(val)) {
+      sections.push(`${k} = ${v}`);
+    }
+    sections.push('');
+  }
+  (0,fs__WEBPACK_IMPORTED_MODULE_4__.writeFileSync)(CONFIG_PATH, sections.join('\n'));
 
   // Reload WireGuard
   try {
