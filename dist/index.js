@@ -36903,8 +36903,11 @@ __nccwpck_require__.a(module, async (__webpack_handle_async_dependencies__, __we
 const __filename = (0,url__WEBPACK_IMPORTED_MODULE_5__.fileURLToPath)(import.meta.url);
 const __dirname = (0,path__WEBPACK_IMPORTED_MODULE_6__.dirname)(__filename);
 
-// Auto-elevation: re-run with sudo if not root
-if (process.getuid && process.getuid() !== 0) {
+// Check for dry-run/test mode
+const DRY_RUN = process.argv.includes('--dry-run') || process.argv.includes('--test');
+
+// Auto-elevation: re-run with sudo if not root (skip in dry-run mode)
+if (!DRY_RUN && process.getuid && process.getuid() !== 0) {
   console.log('[INFO] Requesting sudo privileges...');
   const args = process.argv.slice(2);
   // Use absolute path to ensure same Node.js version
@@ -36918,7 +36921,15 @@ if (process.getuid && process.getuid() !== 0) {
   await new Promise(() => {});
 }
 
-const CONFIG_DIR = '/etc/wireguard';
+// Use temp directory in dry-run mode
+const CONFIG_DIR = DRY_RUN ? '/tmp/wgm-test' : '/etc/wireguard';
+
+// Create test directory if in dry-run mode
+
+if (DRY_RUN && !(0,fs__WEBPACK_IMPORTED_MODULE_4__.existsSync)(CONFIG_DIR)) {
+  console.log('[DRY-RUN] Creating test directory:', CONFIG_DIR);
+  (0,fs__WEBPACK_IMPORTED_MODULE_4__.mkdirSync)(CONFIG_DIR, { recursive: true });
+}
 
 let INTERFACE = null;
 let CONFIG_PATH = null;
@@ -36939,6 +36950,19 @@ async function getInterface() {
     const output = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`ls ${CONFIG_DIR}/*.conf 2>/dev/null | xargs -n1 basename`, { encoding: 'utf-8' });
     const configs = output.trim().split('\n').filter(c => c && c.endsWith('.conf'));
     if (configs.length === 0) {
+      // In dry-run mode, create a test config
+      if (DRY_RUN) {
+        console.log('[DRY-RUN] Creating test WireGuard config...');
+        const testKey = 'YFqp2ZTX1/sU8sXXx2WJtXHJ3eKf+2tSl9ay+6E7V0w='; // fake key for testing
+        const testConfigPath = (0,path__WEBPACK_IMPORTED_MODULE_6__.join)(CONFIG_DIR, 'wg0.conf');
+        (0,fs__WEBPACK_IMPORTED_MODULE_4__.writeFileSync)(testConfigPath, `[Interface]
+Address = 10.0.0.1/24
+ListenPort = 51820
+PrivateKey = ${testKey}
+
+`);
+        return 'wg0';
+      }
       console.log('[ERROR] No WireGuard configs found in ' + CONFIG_DIR);
       process.exit(1);
     }
@@ -37069,7 +37093,11 @@ function saveConfig(config) {
   }
   (0,fs__WEBPACK_IMPORTED_MODULE_4__.writeFileSync)(CONFIG_PATH, sections.join('\n'));
 
-  // Reload WireGuard
+  // Reload WireGuard (skip in dry-run mode)
+  if (DRY_RUN) {
+    console.log('[DRY-RUN] Skipping WireGuard reload (config saved to ' + CONFIG_PATH + ')');
+    return;
+  }
   try {
     (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`wg syncconf ${INTERFACE} <(wg-quick strip ${INTERFACE})`, { shell: 'bash', stdio: 'pipe' });
   } catch {
@@ -37122,6 +37150,11 @@ async function addPeer() {
       validate: input => validateKey(input) || 'Invalid key format (44 character base64)'
     }]);
     publicKey = key.trim();
+  } else if (DRY_RUN) {
+    // Simulate key generation in dry-run mode
+    privateKey = 'YFqp2ZTX1/sU8sXXx2WJtXHJ3eKf+2tSl9ay+6E7V0w=';
+    publicKey = 'uImvhsGpF9wRQZpd2XjhvdEBCjK07DjsZ0HImcHGBAo=';
+    console.log('[DRY-RUN] Using simulated keys');
   } else {
     privateKey = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)('wg genkey', { encoding: 'utf-8' }).trim();
     publicKey = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`echo "${privateKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
@@ -37252,21 +37285,23 @@ function showHelp() {
   wgm - Simplified WireGuard Peer Management
 
   Usage:
-    wgm add          Add a new peer interactively
-    wgm list         List all peers
-    wgm rm <name>    Remove a peer
-    wgm -i <name>    Specify interface (default: auto-detect)
+    wgm add                Add a new peer interactively
+    wgm list               List all peers
+    wgm rm <name>          Remove a peer
+    wgm -i <name>          Specify interface (default: auto-detect)
+    wgm --dry-run          Test mode (no sudo/wg required)
 
   Examples:
     wgm add
     wgm -i wg1 add
     wgm list
     wgm rm laptop
+    wgm --dry-run add      # Test without affecting real config
 
   Requirements:
-    - WireGuard installed
-    - Node.js >= 16
-    - Root privileges
+    - WireGuard installed (except in --dry-run mode)
+    - Node.js >= 14
+    - Root privileges (auto-requested)
   `);
 }
 
@@ -37274,14 +37309,20 @@ function showHelp() {
  * Main entry point
  */
 async function main() {
-  const cmd = process.argv[2];
+  // Handle --dry-run flag position
+  const args = process.argv.slice(2).filter(arg => arg !== '--dry-run' && arg !== '--test');
+  const cmd = args[0];
+
+  if (DRY_RUN) {
+    console.log('[DRY-RUN] Running in test mode (no WireGuard required)\n');
+  }
 
   if (cmd === 'add') {
     await addPeer();
   } else if (cmd === 'list' || cmd === 'ls') {
     await listPeers();
   } else if (cmd === 'rm' || cmd === 'remove') {
-    const name = process.argv[3];
+    const name = args[1];
     if (name) await removePeer(name);
     else console.log('Usage: wgm rm <name>');
   } else if (cmd === '-h' || cmd === '--help' || cmd === '-v' || cmd === '--version') {
