@@ -1,6 +1,6 @@
 {
   "name": "wgm",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Simplified WireGuard Peer Management Tool",
   "main": "dist/index.js",
   "bin": {
@@ -28,12 +28,12 @@
     "@vercel/ncc": "^0.38.0"
   },
   "dependencies": {
-    "inquirer": "^9.2.0",
+    "inquirer": "^8.2.6",
     "qrcode": "^1.5.3",
     "ini": "^4.1.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=14.0.0"
   },
   "repository": {
     "type": "git",
