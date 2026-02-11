@@ -7780,243 +7780,6 @@ if (typeof Object.create === 'function') {
 
 /***/ }),
 
-/***/ 15756:
-/***/ ((module) => {
-
-const { hasOwnProperty } = Object.prototype
-
-/* istanbul ignore next */
-const eol = typeof process !== 'undefined' &&
-  process.platform === 'win32' ? '\r\n' : '\n'
-
-const encode = (obj, opt) => {
-  const children = []
-  let out = ''
-
-  if (typeof opt === 'string') {
-    opt = {
-      section: opt,
-      whitespace: false,
-    }
-  } else {
-    opt = opt || Object.create(null)
-    opt.whitespace = opt.whitespace === true
-  }
-
-  const separator = opt.whitespace ? ' = ' : '='
-
-  for (const k of Object.keys(obj)) {
-    const val = obj[k]
-    if (val && Array.isArray(val)) {
-      for (const item of val) {
-        out += safe(k + '[]') + separator + safe(item) + eol
-      }
-    } else if (val && typeof val === 'object') {
-      children.push(k)
-    } else {
-      out += safe(k) + separator + safe(val) + eol
-    }
-  }
-
-  if (opt.section && out.length) {
-    out = '[' + safe(opt.section) + ']' + eol + out
-  }
-
-  for (const k of children) {
-    const nk = dotSplit(k).join('\\.')
-    const section = (opt.section ? opt.section + '.' : '') + nk
-    const { whitespace } = opt
-    const child = encode(obj[k], {
-      section,
-      whitespace,
-    })
-    if (out.length && child.length) {
-      out += eol
-    }
-
-    out += child
-  }
-
-  return out
-}
-
-const dotSplit = str =>
-  str.replace(/\1/g, '\u0002LITERAL\\1LITERAL\u0002')
-    .replace(/\\\./g, '\u0001')
-    .split(/\./)
-    .map(part =>
-      part.replace(/\1/g, '\\.')
-        .replace(/\2LITERAL\\1LITERAL\2/g, '\u0001'))
-
-const decode = str => {
-  const out = Object.create(null)
-  let p = out
-  let section = null
-  //          section     |key      = value
-  const re = /^\[([^\]]*)\]$|^([^=]+)(=(.*))?$/i
-  const lines = str.split(/[\r\n]+/g)
-
-  for (const line of lines) {
-    if (!line || line.match(/^\s*[;#]/)) {
-      continue
-    }
-    const match = line.match(re)
-    if (!match) {
-      continue
-    }
-    if (match[1] !== undefined) {
-      section = unsafe(match[1])
-      if (section === '__proto__') {
-        // not allowed
-        // keep parsing the section, but don't attach it.
-        p = Object.create(null)
-        continue
-      }
-      p = out[section] = out[section] || Object.create(null)
-      continue
-    }
-    const keyRaw = unsafe(match[2])
-    const isArray = keyRaw.length > 2 && keyRaw.slice(-2) === '[]'
-    const key = isArray ? keyRaw.slice(0, -2) : keyRaw
-    if (key === '__proto__') {
-      continue
-    }
-    const valueRaw = match[3] ? unsafe(match[4]) : true
-    const value = valueRaw === 'true' ||
-      valueRaw === 'false' ||
-      valueRaw === 'null' ? JSON.parse(valueRaw)
-      : valueRaw
-
-    // Convert keys with '[]' suffix to an array
-    if (isArray) {
-      if (!hasOwnProperty.call(p, key)) {
-        p[key] = []
-      } else if (!Array.isArray(p[key])) {
-        p[key] = [p[key]]
-      }
-    }
-
-    // safeguard against resetting a previously defined
-    // array by accidentally forgetting the brackets
-    if (Array.isArray(p[key])) {
-      p[key].push(value)
-    } else {
-      p[key] = value
-    }
-  }
-
-  // {a:{y:1},"a.b":{x:2}} --> {a:{y:1,b:{x:2}}}
-  // use a filter to return the keys that have to be deleted.
-  const remove = []
-  for (const k of Object.keys(out)) {
-    if (!hasOwnProperty.call(out, k) ||
-        typeof out[k] !== 'object' ||
-        Array.isArray(out[k])) {
-      continue
-    }
-
-    // see if the parent section is also an object.
-    // if so, add it to that, and mark this one for deletion
-    const parts = dotSplit(k)
-    p = out
-    const l = parts.pop()
-    const nl = l.replace(/\\\./g, '.')
-    for (const part of parts) {
-      if (part === '__proto__') {
-        continue
-      }
-      if (!hasOwnProperty.call(p, part) || typeof p[part] !== 'object') {
-        p[part] = Object.create(null)
-      }
-      p = p[part]
-    }
-    if (p === out && nl === l) {
-      continue
-    }
-
-    p[nl] = out[k]
-    remove.push(k)
-  }
-  for (const del of remove) {
-    delete out[del]
-  }
-
-  return out
-}
-
-const isQuoted = val => {
-  return (val.startsWith('"') && val.endsWith('"')) ||
-    (val.startsWith("'") && val.endsWith("'"))
-}
-
-const safe = val => {
-  if (
-    typeof val !== 'string' ||
-    val.match(/[=\r\n]/) ||
-    val.match(/^\[/) ||
-    (val.length > 1 && isQuoted(val)) ||
-    val !== val.trim()
-  ) {
-    return JSON.stringify(val)
-  }
-  return val.split(';').join('\\;').split('#').join('\\#')
-}
-
-const unsafe = (val, doUnesc) => {
-  val = (val || '').trim()
-  if (isQuoted(val)) {
-    // remove the single quotes before calling JSON.parse
-    if (val.charAt(0) === "'") {
-      val = val.slice(1, -1)
-    }
-    try {
-      val = JSON.parse(val)
-    } catch {
-      // ignore errors
-    }
-  } else {
-    // walk the val to find the first not-escaped ; character
-    let esc = false
-    let unesc = ''
-    for (let i = 0, l = val.length; i < l; i++) {
-      const c = val.charAt(i)
-      if (esc) {
-        if ('\\;#'.indexOf(c) !== -1) {
-          unesc += c
-        } else {
-          unesc += '\\' + c
-        }
-
-        esc = false
-      } else if (';#'.indexOf(c) !== -1) {
-        break
-      } else if (c === '\\') {
-        esc = true
-      } else {
-        unesc += c
-      }
-    }
-    if (esc) {
-      unesc += '\\'
-    }
-
-    return unesc.trim()
-  }
-  return val
-}
-
-module.exports = {
-  parse: decode,
-  decode,
-  stringify: encode,
-  encode,
-  safe,
-  unsafe,
-}
-
-
-/***/ }),
-
 /***/ 2432:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -36877,14 +36640,12 @@ __nccwpck_require__.a(module, async (__webpack_handle_async_dependencies__, __we
 /* harmony import */ var inquirer__WEBPACK_IMPORTED_MODULE_1__ = __nccwpck_require__(2432);
 /* harmony import */ var inquirer__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__nccwpck_require__.n(inquirer__WEBPACK_IMPORTED_MODULE_1__);
 /* harmony import */ var qrcode__WEBPACK_IMPORTED_MODULE_2__ = __nccwpck_require__(21302);
-/* harmony import */ var ini__WEBPACK_IMPORTED_MODULE_3__ = __nccwpck_require__(15756);
-/* harmony import */ var ini__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__nccwpck_require__.n(ini__WEBPACK_IMPORTED_MODULE_3__);
-/* harmony import */ var fs__WEBPACK_IMPORTED_MODULE_4__ = __nccwpck_require__(79896);
-/* harmony import */ var fs__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__nccwpck_require__.n(fs__WEBPACK_IMPORTED_MODULE_4__);
-/* harmony import */ var url__WEBPACK_IMPORTED_MODULE_5__ = __nccwpck_require__(87016);
-/* harmony import */ var url__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__nccwpck_require__.n(url__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var path__WEBPACK_IMPORTED_MODULE_6__ = __nccwpck_require__(16928);
-/* harmony import */ var path__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__nccwpck_require__.n(path__WEBPACK_IMPORTED_MODULE_6__);
+/* harmony import */ var fs__WEBPACK_IMPORTED_MODULE_3__ = __nccwpck_require__(79896);
+/* harmony import */ var fs__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__nccwpck_require__.n(fs__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var url__WEBPACK_IMPORTED_MODULE_4__ = __nccwpck_require__(87016);
+/* harmony import */ var url__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__nccwpck_require__.n(url__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var path__WEBPACK_IMPORTED_MODULE_5__ = __nccwpck_require__(16928);
+/* harmony import */ var path__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__nccwpck_require__.n(path__WEBPACK_IMPORTED_MODULE_5__);
 
 /**
  * wgm - Simplified WireGuard Peer Management Tool
@@ -36899,9 +36660,49 @@ __nccwpck_require__.a(module, async (__webpack_handle_async_dependencies__, __we
 
 
 
+/**
+ * Parse WireGuard config file (handles multiple [Peer] sections)
+ * @param {string} content - Config file content
+ * @returns {Object} - Parsed config with unique keys for each peer
+ */
+function parseWireGuardConfig(content) {
+  const lines = content.split('\n');
+  const config = {};
+  let currentSection = null;
+  let peerIndex = 0;
 
-const __filename = (0,url__WEBPACK_IMPORTED_MODULE_5__.fileURLToPath)(import.meta.url);
-const __dirname = (0,path__WEBPACK_IMPORTED_MODULE_6__.dirname)(__filename);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    // Section header
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      currentSection = trimmed.slice(1, -1);
+      if (currentSection === 'Peer') {
+        // Use unique key for each peer
+        currentSection = `Peer #${peerIndex}`;
+        peerIndex++;
+      }
+      if (!config[currentSection]) {
+        config[currentSection] = {};
+      }
+      continue;
+    }
+
+    // Key = Value
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex > 0 && currentSection) {
+      const key = trimmed.slice(0, eqIndex).trim();
+      const value = trimmed.slice(eqIndex + 1).trim();
+      config[currentSection][key] = value;
+    }
+  }
+
+  return config;
+}
+
+const __filename = (0,url__WEBPACK_IMPORTED_MODULE_4__.fileURLToPath)(import.meta.url);
+const __dirname = (0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(__filename);
 
 // Check for dry-run/test mode
 const DRY_RUN = process.argv.includes('--dry-run') || process.argv.includes('--test');
@@ -36926,9 +36727,9 @@ const CONFIG_DIR = DRY_RUN ? '/tmp/wgm-test' : '/etc/wireguard';
 
 // Create test directory if in dry-run mode
 
-if (DRY_RUN && !(0,fs__WEBPACK_IMPORTED_MODULE_4__.existsSync)(CONFIG_DIR)) {
+if (DRY_RUN && !(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(CONFIG_DIR)) {
   console.log('[DRY-RUN] Creating test directory:', CONFIG_DIR);
-  (0,fs__WEBPACK_IMPORTED_MODULE_4__.mkdirSync)(CONFIG_DIR, { recursive: true });
+  (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(CONFIG_DIR, { recursive: true });
 }
 
 let INTERFACE = null;
@@ -36954,11 +36755,23 @@ async function getInterface() {
       if (DRY_RUN) {
         console.log('[DRY-RUN] Creating test WireGuard config...');
         const testKey = 'YFqp2ZTX1/sU8sXXx2WJtXHJ3eKf+2tSl9ay+6E7V0w='; // fake key for testing
-        const testConfigPath = (0,path__WEBPACK_IMPORTED_MODULE_6__.join)(CONFIG_DIR, 'wg0.conf');
-        (0,fs__WEBPACK_IMPORTED_MODULE_4__.writeFileSync)(testConfigPath, `[Interface]
+        const testConfigPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(CONFIG_DIR, 'wg0.conf');
+        (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(testConfigPath, `[Interface]
 Address = 10.0.0.1/24
 ListenPort = 51820
 PrivateKey = ${testKey}
+
+[Peer]
+PublicKey = ntCW8Oz662SaHcKnMC5P8SJIFqsbziA1xCmmfuz5gGU=
+AllowedIps = 10.0.0.2/32
+
+[Peer]
+PublicKey = 5PmgMaU9mvIuOqxein4f6XhDd+0uauV0MG4g3ka8K0A=
+AllowedIps = 10.0.0.3/32
+
+[Peer]
+PublicKey = uImvhsGpF9wRQZpd2XjhvdEBCjK07DjsZ0HImcHGBAo=
+AllowedIps = 10.0.0.4/32
 
 `);
         return 'wg0';
@@ -36989,7 +36802,7 @@ PrivateKey = ${testKey}
 async function init() {
   if (!INTERFACE) {
     INTERFACE = await getInterface();
-    CONFIG_PATH = (0,path__WEBPACK_IMPORTED_MODULE_6__.join)(CONFIG_DIR, `${INTERFACE}.conf`);
+    CONFIG_PATH = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(CONFIG_DIR, `${INTERFACE}.conf`);
   }
 }
 
@@ -37008,7 +36821,7 @@ function validateKey(key) {
  */
 function getServerPublicKey() {
   try {
-    const config = (0,ini__WEBPACK_IMPORTED_MODULE_3__.parse)((0,fs__WEBPACK_IMPORTED_MODULE_4__.readFileSync)(CONFIG_PATH, 'utf-8'));
+    const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
     const privKey = config.Interface && config.Interface.PrivateKey;
     if (privKey) {
       return (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
@@ -37025,7 +36838,7 @@ function getServerPublicKey() {
  */
 function getEndpoint() {
   try {
-    const config = (0,ini__WEBPACK_IMPORTED_MODULE_3__.parse)((0,fs__WEBPACK_IMPORTED_MODULE_4__.readFileSync)(CONFIG_PATH, 'utf-8'));
+    const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
     const port = (config.Interface && config.Interface.ListenPort) || '51820';
     try {
       const ip = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)('curl -s ifconfig.me', { encoding: 'utf-8', timeout: 3000 }).trim();
@@ -37043,7 +36856,7 @@ function getEndpoint() {
  * @returns {string|null} - Available IP with CIDR or null
  */
 function getAvailableIP() {
-  const config = (0,ini__WEBPACK_IMPORTED_MODULE_3__.parse)((0,fs__WEBPACK_IMPORTED_MODULE_4__.readFileSync)(CONFIG_PATH, 'utf-8'));
+  const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
   const network = config.Interface && config.Interface.Address;
 
   if (!network) {
@@ -37055,11 +36868,12 @@ function getAvailableIP() {
   const [baseIp, cidr] = network.split('/');
   const prefix = baseIp.split('.').slice(0, 3).join('.');
 
-  // Collect used IPs
+  // Collect used IPs (handle both AllowedIPs and AllowedIps)
   const used = new Set();
   for (const [key, val] of Object.entries(config)) {
-    if (key.startsWith('Peer') && val.AllowedIPs) {
-      const ip = val.AllowedIPs.split('/')[0];
+    const allowedIPs = val.AllowedIPs || val.AllowedIps;
+    if (key.startsWith('Peer') && allowedIPs) {
+      const ip = allowedIPs.split('/')[0];
       const octets = ip.split('.');
       if (octets.length === 4) {
         const lastOctet = parseInt(octets[3]);
@@ -37084,7 +36898,7 @@ function getAvailableIP() {
 function saveConfig(config) {
   // Create backup
   const backupPath = `${CONFIG_PATH}.backup.${Date.now()}`;
-  (0,fs__WEBPACK_IMPORTED_MODULE_4__.copyFileSync)(CONFIG_PATH, backupPath);
+  (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
 
   // Save new config (manual INI format for compatibility)
   const sections = [];
@@ -37095,7 +36909,7 @@ function saveConfig(config) {
     }
     sections.push('');
   }
-  (0,fs__WEBPACK_IMPORTED_MODULE_4__.writeFileSync)(CONFIG_PATH, sections.join('\n'));
+  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(CONFIG_PATH, sections.join('\n'));
 
   // Reload WireGuard (skip in dry-run mode)
   if (DRY_RUN) {
@@ -37114,7 +36928,7 @@ function saveConfig(config) {
  */
 async function addPeer() {
   await init();
-  const config = (0,ini__WEBPACK_IMPORTED_MODULE_3__.parse)((0,fs__WEBPACK_IMPORTED_MODULE_4__.readFileSync)(CONFIG_PATH, 'utf-8'));
+  const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
 
   // Prompt for peer name
   const { name } = await inquirer__WEBPACK_IMPORTED_MODULE_1___default().prompt([{
@@ -37175,7 +36989,7 @@ async function addPeer() {
   // Get server's VPN IP for AllowedIPs
   let serverIp = 'SERVER_VPN_IP';
   try {
-    const config = (0,ini__WEBPACK_IMPORTED_MODULE_3__.parse)((0,fs__WEBPACK_IMPORTED_MODULE_4__.readFileSync)(CONFIG_PATH, 'utf-8'));
+    const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
     if (config.Interface && config.Interface.Address) {
       serverIp = config.Interface.Address.split('/')[0];
     }
@@ -37215,7 +37029,7 @@ PersistentKeepalive = 25`;
 
   // Save to file
   const filename = `${name}.conf`;
-  (0,fs__WEBPACK_IMPORTED_MODULE_4__.writeFileSync)(filename, clientConfig);
+  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(filename, clientConfig);
   console.log(`[FILE] Config saved: ${filename}`);
 
   // Generate QR code
@@ -37235,7 +37049,7 @@ PersistentKeepalive = 25`;
  */
 async function listPeers() {
   await init();
-  const config = (0,ini__WEBPACK_IMPORTED_MODULE_3__.parse)((0,fs__WEBPACK_IMPORTED_MODULE_4__.readFileSync)(CONFIG_PATH, 'utf-8'));
+  const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
 
   console.log(`\n Peers on ${INTERFACE}:\n`);
 
@@ -37255,9 +37069,10 @@ async function listPeers() {
   }
 
   for (const [key, val] of peers) {
-    const name = key.replace('Peer #', '');
+    const name = key === 'Peer' ? '(unnamed)' : key.replace('Peer #', '');
+    const allowedIPs = val.AllowedIPs || val.AllowedIps || 'N/A';
     const isOnline = onlinePeers.has(val.PublicKey);
-    console.log(`  ${isOnline ? '[ONLINE]' : '[OFFLINE]'} ${name}  ${val.AllowedIPs}`);
+    console.log(`  ${isOnline ? '[ONLINE]' : '[OFFLINE]'} ${name}  ${allowedIPs}`);
   }
   console.log('');
 }
@@ -37268,7 +37083,7 @@ async function listPeers() {
  */
 async function removePeer(name) {
   await init();
-  const config = (0,ini__WEBPACK_IMPORTED_MODULE_3__.parse)((0,fs__WEBPACK_IMPORTED_MODULE_4__.readFileSync)(CONFIG_PATH, 'utf-8'));
+  const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
   const peerKey = Object.keys(config).find(k => k === `Peer #${name}` || (config[k] && config[k].PublicKey === name));
 
   if (!peerKey) {
