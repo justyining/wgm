@@ -97,7 +97,7 @@ function validateKey(key) {
 function getServerPublicKey() {
   try {
     const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
-    const privKey = config.Interface?.PrivateKey;
+    const privKey = config.Interface && config.Interface.PrivateKey;
     if (privKey) {
       return execSync(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
     }
@@ -114,7 +114,7 @@ function getServerPublicKey() {
 function getEndpoint() {
   try {
     const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
-    const port = config.Interface?.ListenPort || '51820';
+    const port = (config.Interface && config.Interface.ListenPort) || '51820';
     try {
       const ip = execSync('curl -s ifconfig.me', { encoding: 'utf-8', timeout: 3000 }).trim();
       return `${ip}:${port}`;
@@ -132,7 +132,7 @@ function getEndpoint() {
  */
 function getAvailableIP() {
   const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
-  const network = config.Interface?.Address;
+  const network = config.Interface && config.Interface.Address;
 
   if (!network) return null;
 
@@ -243,7 +243,7 @@ async function addPeer() {
   let serverIp = 'SERVER_VPN_IP';
   try {
     const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
-    if (config.Interface?.Address) {
+    if (config.Interface && config.Interface.Address) {
       serverIp = config.Interface.Address.split('/')[0];
     }
   } catch {}
@@ -267,7 +267,7 @@ async function addPeer() {
   // Generate client config
   const serverPubKey = getServerPublicKey();
   const endpoint = getEndpoint();
-  const dns = config.Interface?.DNS || '1.1.1.1, 8.8.8.8';
+  const dns = (config.Interface && config.Interface.DNS) || '1.1.1.1, 8.8.8.8';
 
   const clientConfig = `[Interface]
 ${privateKey ? `PrivateKey = ${privateKey}
@@ -310,7 +310,8 @@ async function listPeers() {
   let onlinePeers = new Set();
   try {
     const status = execSync(`wg show ${INTERFACE}`, { encoding: 'utf-8' });
-    onlinePeers = new Set(status.match(/peer: ([^\s]+)/g)?.map(p => p.replace('peer: ', '')) || []);
+    const matches = status.match(/peer: ([^\s]+)/g);
+    onlinePeers = new Set(matches ? matches.map(p => p.replace('peer: ', '')) : []);
   } catch {}
 
   const peers = Object.entries(config).filter(([k]) => k.startsWith('Peer'));
@@ -335,7 +336,7 @@ async function listPeers() {
 async function removePeer(name) {
   await init();
   const config = parse(readFileSync(CONFIG_PATH, 'utf-8'));
-  const peerKey = Object.keys(config).find(k => k === `Peer #${name}` || config[k]?.PublicKey === name);
+  const peerKey = Object.keys(config).find(k => k === `Peer #${name}` || (config[k] && config[k].PublicKey === name));
 
   if (!peerKey) {
     console.log(`[ERROR] Peer not found: ${name}`);

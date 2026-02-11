@@ -28,9 +28,9 @@
     "@vercel/ncc": "^0.38.0"
   },
   "dependencies": {
+    "ini": "^3.0.1",
     "inquirer": "^8.2.6",
-    "qrcode": "^1.5.3",
-    "ini": "^4.1.0"
+    "qrcode": "^1.5.3"
   },
   "engines": {
     "node": ">=14.0.0"
