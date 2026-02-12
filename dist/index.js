@@ -37036,14 +37036,8 @@ function saveConfig(config) {
     }
     sections.push('');
   }
-  // Create backup
-  const backupDir = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)((0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(CONFIG_PATH), 'backups');
-  try {
-    (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(backupDir, { recursive: true, mode: 0o700 });
-  } catch (e) {
-    if (e.code !== 'EEXIST') throw e;
-  }
-  const backupPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(backupDir, `${(0,path__WEBPACK_IMPORTED_MODULE_5__.basename)(CONFIG_PATH)}.backup.${Date.now()}`);
+  // Create backup in same directory as config file
+  const backupPath = `${CONFIG_PATH}.backup.${Date.now()}`;
 
   try {
     (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
