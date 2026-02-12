@@ -37045,9 +37045,7 @@ Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
 
   // Print client config to terminal
-  console.log('\n========== Client Config ==========');
-  console.log(clientConfig);
-  console.log('===================================\n');
+  console.log('\n' + clientConfig + '\n');
 
   // Generate QR code
   try {
