@@ -29,11 +29,11 @@
   },
   "dependencies": {
     "ini": "^3.0.1",
-    "inquirer": "^8.0.0",
+    "inquirer": "^9.2.0",
     "qrcode": "^1.5.3"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=14.18.0"
   },
   "repository": {
     "type": "git",

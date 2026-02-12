@@ -28,7 +28,7 @@ npx wgm add
 ## Requirements
 
 - WireGuard installed (`wg` and `wg-quick` commands available)
-- Node.js >= 14
+- Node.js >= 14.18
 - Root privileges (auto-requested when needed for reading/writing `/etc/wireguard/`)
 
 ## Usage
