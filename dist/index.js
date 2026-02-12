@@ -27780,22 +27780,23 @@ function showInitHint() {
   const defaultConfig = (0,path__WEBPACK_IMPORTED_MODULE_4__.join)(CONFIG_DIR, 'wg0.conf');
   console.log('\n[INFO] WireGuard config not found in ' + CONFIG_DIR);
   console.log('[HINT] Create a config with the following steps:\n');
-  console.log('1. Generate server keys (in any directory):');
-  console.log('   wg genkey | tee privatekey | wg pubkey > publickey');
-  console.log('   # Private key saved in "privatekey", Public key in "publickey"');
-  console.log('\n2. Copy the private key from "privatekey" file');
-  console.log('\n3. Create config file (replace YOUR_PRIVATE_KEY with actual key):');
+  console.log('1. Create config directory:');
   console.log(`   sudo mkdir -p ${CONFIG_DIR}`);
-  console.log(`   sudo tee ${defaultConfig} << 'EOF'`);
+  console.log('\n2. Generate keys IN the target directory:');
+  console.log(`   cd ${CONFIG_DIR}`);
+  console.log('   sudo wg genkey | tee privatekey | sudo wg pubkey > publickey');
+  console.log('   # Private key saved in "privatekey", Public key in "publickey"');
+  console.log('\n3. Create config file using $(cat privatekey) to read the key:');
+  console.log(`   sudo tee ${defaultConfig} << EOF`);
   console.log('[Interface]');
   console.log('Address = 10.0.0.1/24');
   console.log('ListenPort = 51820');
-  console.log('PrivateKey = YOUR_PRIVATE_KEY');
+  console.log('PrivateKey = $(cat privatekey)');
   console.log('EOF');
-  console.log('\n4. Set permissions:');
-  console.log(`   sudo chmod 600 ${defaultConfig}`);
-  console.log('\n5. Clean up local key files:');
-  console.log('   rm privatekey publickey');
+  console.log('\n4. Set proper permissions (keep privatekey for backup):');
+  console.log(`   sudo chmod 600 ${defaultConfig} privatekey`);
+  console.log('\n5. Clean up publickey (keep privatekey):');
+  console.log('   sudo rm publickey');
   console.log('\n6. Start WireGuard:');
   console.log(`   sudo wg-quick up wg0`);
   console.log('');
@@ -27859,6 +27860,7 @@ function getAvailableIP() {
 
   // Collect used IPs
   const used = new Set();
+  used.add(baseIpNum);  // Mark server's own IP as used
   for (const [key, val] of Object.entries(config)) {
     const allowedIPs = val.AllowedIPs || val.AllowedIps;
     if (key.startsWith('Peer') && allowedIPs) {
@@ -28039,6 +28041,7 @@ async function addPeer() {
   const clientConfig = `[Interface]
 ${privateKey ? `PrivateKey = ${privateKey}
 ` : '# PrivateKey = YOUR_PRIVATE_KEY_HERE\n'}Address = ${ip}
+ListenPort = 51820
 
 [Peer]
 PublicKey = ${serverPubKey}
