@@ -212,11 +212,48 @@ function getEndpoint() {
 }
 
 /**
+ * Show initialization hint for creating WireGuard config
+ */
+function showInitHint() {
+  console.log('\n[INFO] WireGuard config not found or empty: ' + CONFIG_PATH);
+  console.log('[HINT] Create a config with the following steps:\n');
+  console.log('1. Generate server keys:');
+  console.log('   wg genkey | tee privatekey | wg pubkey > publickey');
+  console.log('\n2. Create config file:');
+  console.log(`   sudo mkdir -p ${CONFIG_DIR}`);
+  console.log(`   sudo tee ${CONFIG_PATH} << 'EOF'`);
+  console.log('[Interface]');
+  console.log('Address = 10.0.0.1/24');
+  console.log('ListenPort = 51820');
+  console.log('PrivateKey = YOUR_SERVER_PRIVATE_KEY_HERE');
+  console.log('PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE');
+  console.log('PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE');
+  console.log('EOF');
+  console.log('\n3. Set permissions:');
+  console.log(`   sudo chmod 600 ${CONFIG_PATH}`);
+  console.log('\n4. Start WireGuard:');
+  console.log(`   sudo wg-quick up ${INTERFACE || 'wg0'}`);
+  console.log('');
+}
+
+/**
  * Get next available IP address from the configured network range
  * @returns {string|null} - Available IP with CIDR or null
  */
 function getAvailableIP() {
-  const config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+  if (!existsSync(CONFIG_PATH)) {
+    showInitHint();
+    return null;
+  }
+
+  let config;
+  try {
+    config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+  } catch (e) {
+    console.log('[ERROR] Failed to read config: ' + e.message);
+    return null;
+  }
+
   const network = config.Interface && config.Interface.Address;
 
   if (!network) {
@@ -300,7 +337,18 @@ function saveConfig(config) {
  */
 async function addPeer() {
   await init();
-  const config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+  if (!existsSync(CONFIG_PATH)) {
+    showInitHint();
+    return;
+  }
+
+  let config;
+  try {
+    config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+  } catch (e) {
+    console.log('[ERROR] Failed to read config: ' + e.message);
+    return;
+  }
 
   // Prompt for peer name
   const { name } = await inquirer.prompt([{
@@ -422,7 +470,18 @@ PersistentKeepalive = 25`;
  */
 async function listPeers() {
   await init();
-  const config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+  if (!existsSync(CONFIG_PATH)) {
+    showInitHint();
+    return;
+  }
+
+  let config;
+  try {
+    config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+  } catch (e) {
+    console.log('[ERROR] Failed to read config: ' + e.message);
+    return;
+  }
 
   console.log(`\n Peers on ${INTERFACE}:\n`);
 
@@ -456,7 +515,18 @@ async function listPeers() {
  */
 async function removePeer(name) {
   await init();
-  const config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+  if (!existsSync(CONFIG_PATH)) {
+    showInitHint();
+    return;
+  }
+
+  let config;
+  try {
+    config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+  } catch (e) {
+    console.log('[ERROR] Failed to read config: ' + e.message);
+    return;
+  }
   const peerKey = Object.keys(config).find(k => k === `Peer #${name}` || (config[k] && config[k].PublicKey === name));
 
   if (!peerKey) {
