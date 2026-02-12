@@ -252,15 +252,7 @@ function getAvailableIP() {
  * @param {Object} config - Parsed INI config object
  */
 function saveConfig(config) {
-  // Create backup
-  const backupDir = join(dirname(CONFIG_PATH), 'backups');
-  if (!existsSync(backupDir)) {
-    mkdirSync(backupDir, { recursive: true });
-  }
-  const backupPath = join(backupDir, `${basename(CONFIG_PATH)}.backup.${Date.now()}`);
-  copyFileSync(CONFIG_PATH, backupPath);
-
-  // Save new config (WireGuard standard format)
+  // Build config content
   const sections = [];
   for (const [key, val] of Object.entries(config)) {
     if (key.startsWith('Peer #')) {
@@ -276,7 +268,26 @@ function saveConfig(config) {
     }
     sections.push('');
   }
-  writeFileSync(CONFIG_PATH, sections.join('\n'));
+  const configContent = sections.join('\n');
+
+  // In dry-run mode, only show what would be saved
+  if (DRY_RUN) {
+    console.log('[DRY-RUN] Would save config to:', CONFIG_PATH);
+    console.log('[DRY-RUN] Config content:\n');
+    console.log(configContent);
+    return;
+  }
+
+  // Create backup
+  const backupDir = join(dirname(CONFIG_PATH), 'backups');
+  if (!existsSync(backupDir)) {
+    mkdirSync(backupDir, { recursive: true });
+  }
+  const backupPath = join(backupDir, `${basename(CONFIG_PATH)}.backup.${Date.now()}`);
+  copyFileSync(CONFIG_PATH, backupPath);
+
+  // Save new config
+  writeFileSync(CONFIG_PATH, configContent);
 
   // Reload WireGuard (skip in dry-run mode)
   if (DRY_RUN) {
@@ -394,17 +405,23 @@ AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
 
-  // Save to file
-  const filename = `${name}.conf`;
-  writeFileSync(filename, clientConfig);
-  console.log(`[FILE] Config saved: ${filename}`);
+  // Save client config or show in dry-run mode
+  if (DRY_RUN) {
+    console.log('[DRY-RUN] Client config:');
+    console.log(clientConfig);
+  } else {
+    // Save to file
+    const filename = `${name}.conf`;
+    writeFileSync(filename, clientConfig);
+    console.log(`[FILE] Config saved: ${filename}`);
 
-  // Generate QR code
-  try {
-    const qr = await QRCode.toString(clientConfig, { type: 'terminal', small: true });
-    console.log('\n[QR] QR Code:');
-    console.log(qr);
-  } catch {}
+    // Generate QR code
+    try {
+      const qr = await QRCode.toString(clientConfig, { type: 'terminal', small: true });
+      console.log('\n[QR] QR Code:');
+      console.log(qr);
+    } catch {}
+  }
 
   if (privateKey) {
     console.log('\n[WARN] Private key generated. Keep it safe!');

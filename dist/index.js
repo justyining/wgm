@@ -36899,15 +36899,7 @@ function getAvailableIP() {
  * @param {Object} config - Parsed INI config object
  */
 function saveConfig(config) {
-  // Create backup
-  const backupDir = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)((0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(CONFIG_PATH), 'backups');
-  if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(backupDir)) {
-    (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(backupDir, { recursive: true });
-  }
-  const backupPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(backupDir, `${(0,path__WEBPACK_IMPORTED_MODULE_5__.basename)(CONFIG_PATH)}.backup.${Date.now()}`);
-  (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
-
-  // Save new config (WireGuard standard format)
+  // Build config content
   const sections = [];
   for (const [key, val] of Object.entries(config)) {
     if (key.startsWith('Peer #')) {
@@ -36923,7 +36915,26 @@ function saveConfig(config) {
     }
     sections.push('');
   }
-  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(CONFIG_PATH, sections.join('\n'));
+  const configContent = sections.join('\n');
+
+  // In dry-run mode, only show what would be saved
+  if (DRY_RUN) {
+    console.log('[DRY-RUN] Would save config to:', CONFIG_PATH);
+    console.log('[DRY-RUN] Config content:\n');
+    console.log(configContent);
+    return;
+  }
+
+  // Create backup
+  const backupDir = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)((0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(CONFIG_PATH), 'backups');
+  if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(backupDir)) {
+    (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(backupDir, { recursive: true });
+  }
+  const backupPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(backupDir, `${(0,path__WEBPACK_IMPORTED_MODULE_5__.basename)(CONFIG_PATH)}.backup.${Date.now()}`);
+  (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
+
+  // Save new config
+  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(CONFIG_PATH, configContent);
 
   // Reload WireGuard (skip in dry-run mode)
   if (DRY_RUN) {
@@ -37041,17 +37052,23 @@ AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
 
-  // Save to file
-  const filename = `${name}.conf`;
-  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(filename, clientConfig);
-  console.log(`[FILE] Config saved: ${filename}`);
+  // Save client config or show in dry-run mode
+  if (DRY_RUN) {
+    console.log('[DRY-RUN] Client config:');
+    console.log(clientConfig);
+  } else {
+    // Save to file
+    const filename = `${name}.conf`;
+    (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(filename, clientConfig);
+    console.log(`[FILE] Config saved: ${filename}`);
 
-  // Generate QR code
-  try {
-    const qr = await qrcode__WEBPACK_IMPORTED_MODULE_2__.toString(clientConfig, { type: 'terminal', small: true });
-    console.log('\n[QR] QR Code:');
-    console.log(qr);
-  } catch {}
+    // Generate QR code
+    try {
+      const qr = await qrcode__WEBPACK_IMPORTED_MODULE_2__.toString(clientConfig, { type: 'terminal', small: true });
+      console.log('\n[QR] QR Code:');
+      console.log(qr);
+    } catch {}
+  }
 
   if (privateKey) {
     console.log('\n[WARN] Private key generated. Keep it safe!');
