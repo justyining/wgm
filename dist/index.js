@@ -36904,7 +36904,7 @@ function saveConfig(config) {
   if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(backupDir)) {
     (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(backupDir, { recursive: true });
   }
-  const backupPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(backupDir, `${(0,fs__WEBPACK_IMPORTED_MODULE_3__.basename)(CONFIG_PATH)}.backup.${Date.now()}`);
+  const backupPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(backupDir, `${(0,path__WEBPACK_IMPORTED_MODULE_5__.basename)(CONFIG_PATH)}.backup.${Date.now()}`);
   (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
 
   // Save new config (WireGuard standard format)

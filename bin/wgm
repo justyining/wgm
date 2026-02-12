@@ -9,9 +9,9 @@
 import { execSync, spawn } from 'child_process';
 import inquirer from 'inquirer';
 import QRCode from 'qrcode';
-import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync, basename } from 'fs';
+import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, basename } from 'path';
 
 /**
  * Parse WireGuard config file (handles multiple [Peer] sections with comments)
