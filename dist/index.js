@@ -36873,8 +36873,6 @@ function showInitHint() {
   console.log('Address = 10.0.0.1/24');
   console.log('ListenPort = 51820');
   console.log('PrivateKey = YOUR_SERVER_PRIVATE_KEY_HERE');
-  console.log('PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE');
-  console.log('PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE');
   console.log('EOF');
   console.log('\n3. Set permissions:');
   console.log(`   sudo chmod 600 ${CONFIG_PATH}`);
