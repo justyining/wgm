@@ -36892,7 +36892,7 @@ function getAvailableIP() {
   // Find first available IP (starting from .2)
   for (let i = 2; i < 255; i++) {
     if (!used.has(i)) {
-      return `${prefix}.${i}/${cidr}`;
+      return `${prefix}.${i}/32`;
     }
   }
   return null;
@@ -37025,7 +37025,7 @@ async function addPeer() {
   // Save config
   config[`Peer #${name}`] = {
     PublicKey: publicKey,
-    AllowedIPs: ip.replace(/\/\d+$/, '') + '/32'
+    AllowedIPs: ip
   };
   saveConfig(config);
   console.log(`[OK] Peer "${name}" added successfully`);
