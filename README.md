@@ -22,26 +22,21 @@ npm install -g wgm
 Or use with npx (no installation):
 
 ```bash
-# If npx is not in root's PATH, use full path:
-sudo $(which npx) wgm add
+npx wgm add
 ```
 
 ## Requirements
 
 - WireGuard installed (`wg` and `wg-quick` commands available)
 - Node.js >= 16
-- Root privileges (for reading/writing `/etc/wireguard/`)
+- Root privileges (auto-requested when needed for reading/writing `/etc/wireguard/`)
 
 ## Usage
 
 ### Add a new peer
 
 ```bash
-# If installed globally
-sudo $(which wgm) add
-
-# Or use full path
-sudo /usr/local/bin/wgm add
+wgm add
 ```
 
 Interactive workflow:
@@ -49,8 +44,8 @@ Interactive workflow:
 2. Choose key generation method:
    - **Manual** (recommended): Client generates keys locally, you paste the public key
    - **Auto**: Tool generates keys on server (less secure)
-3. Configure AllowedIPs (default: server VPN IP only)
-4. Tool generates `peername.conf` file and QR code
+3. Configure AllowedIPs (default: entire VPN network for client-to-client communication)
+4. Tool prints client config to terminal with QR code
 
 ### List all peers
 
@@ -63,13 +58,13 @@ Shows online/offline status and assigned IPs.
 ### Remove a peer
 
 ```bash
-sudo $(which wgm) rm <name>
+wgm rm <name>
 ```
 
 ## Example
 
 ```bash
-$ sudo $(which wgm) add
+$ wgm add
 ? Peer name: macbook
 ? Key generation method: I provide the client public key (recommended)
 
@@ -78,18 +73,32 @@ On the client device, run:
 Send the PUBLIC KEY to the server admin.
 
 ? Paste client public key: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-Assigned IP: 10.0.0.3/24
-? AllowedIPs (traffic to route through VPN): 10.0.0.1/32
+Assigned IP: 10.0.0.3/32
+? AllowedIPs (traffic to route through VPN): 10.0.0.0/24
 [OK] Peer "macbook" added successfully
-[FILE] Config saved: macbook.conf
+
+========== Client Config ==========
+[Interface]
+PrivateKey = YOUR_PRIVATE_KEY_HERE
+Address = 10.0.0.3/32
+ListenPort = 51820
+
+[Peer]
+PublicKey = GfcvimQ3rcYn88WJfee74YQMUwFTfSZUx/AgM9ocfxs=
+AllowedIPs = 10.0.0.0/24
+Endpoint = 1.2.3.4:51820
+PersistentKeepalive = 25
+===================================
+
 [QR] QR Code:
 [QR code displayed here]
 ```
 
 ## Client Setup
 
-1. Copy the generated `.conf` file to your client device
-2. Import into WireGuard app, or use command line:
+1. Copy the printed client config from terminal and save to a `.conf` file on your device
+2. Add your private key to the config (replace `# PrivateKey = YOUR_PRIVATE_KEY_HERE`)
+3. Import into WireGuard app, or use command line:
    ```bash
    sudo wg-quick up ./macbook.conf
    ```
