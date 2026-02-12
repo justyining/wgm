@@ -36769,7 +36769,7 @@ async function getInterface() {
 
   // List available configs
   try {
-    const output = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`ls ${CONFIG_DIR}/*.conf 2>/dev/null | xargs -n1 basename`, { encoding: 'utf-8' });
+    const output = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`ls ${CONFIG_DIR}/*.conf 2>/dev/null | xargs -r -n1 basename`, { encoding: 'utf-8' });
     const configs = output.trim().split('\n').filter(c => c && c.endsWith('.conf'));
     if (configs.length === 0) {
       console.log('[ERROR] No WireGuard configs found in ' + CONFIG_DIR);
