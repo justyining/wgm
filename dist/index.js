@@ -37044,10 +37044,10 @@ AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
 
-  // Save to file
-  const filename = `${name}.conf`;
-  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(filename, clientConfig);
-  console.log(`[FILE] Config saved: ${filename}`);
+  // Print client config to terminal
+  console.log('\n========== Client Config ==========');
+  console.log(clientConfig);
+  console.log('===================================\n');
 
   // Generate QR code
   try {
