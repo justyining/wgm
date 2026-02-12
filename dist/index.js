@@ -36772,7 +36772,7 @@ async function getInterface() {
     const output = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`ls ${CONFIG_DIR}/*.conf 2>/dev/null | xargs -r -n1 basename`, { encoding: 'utf-8' });
     const configs = output.trim().split('\n').filter(c => c && c.endsWith('.conf'));
     if (configs.length === 0) {
-      console.log('[ERROR] No WireGuard configs found in ' + CONFIG_DIR);
+      showInitHint();
       process.exit(1);
     }
     const names = configs.map(c => c.replace('.conf', ''));
@@ -36787,7 +36787,7 @@ async function getInterface() {
     }]);
     return selected;
   } catch {
-    console.log('[ERROR] Cannot read ' + CONFIG_DIR);
+    showInitHint();
     process.exit(1);
   }
 }
