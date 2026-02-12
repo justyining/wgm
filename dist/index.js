@@ -37005,12 +37005,14 @@ async function addPeer() {
   }
   console.log(`Assigned IP: ${ip}`);
 
-  // Get server's VPN IP for AllowedIPs
-  let serverIp = 'SERVER_VPN_IP';
+  // Get server's VPN network for AllowedIPs
+  let serverNetwork = '10.0.0.0/24';
   try {
     const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
     if (config.Interface && config.Interface.Address) {
-      serverIp = config.Interface.Address.split('/')[0];
+      const [baseIp, cidr] = config.Interface.Address.split('/');
+      const prefix = baseIp.split('.').slice(0, 3).join('.');
+      serverNetwork = `${prefix}.0/${cidr}`;
     }
   } catch {}
 
@@ -37018,7 +37020,7 @@ async function addPeer() {
     type: 'input',
     name: 'allowedIPs',
     message: 'AllowedIPs (traffic to route through VPN):',
-    default: `10.0.0.0/24`,
+    default: serverNetwork,
     validate: input => input.length > 0 || 'AllowedIPs cannot be empty'
   }]);
 
