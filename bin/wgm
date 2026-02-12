@@ -343,7 +343,7 @@ async function addPeer() {
   } else if (DRY_RUN) {
     // Simulate key generation in dry-run mode
     privateKey = 'YFqp2ZTX1/sU8sXXx2WJtXHJ3eKf+2tSl9ay+6E7V0w=';
-    publicKey = 'uImvhsGpF9wRQZpd2XjhvdEBCjK07DjsZ0HImcHGBAo=';
+    publicKey = 'SIMULATED_CLIENT_PUBLIC_KEY_FOR_DRY_RUN';
     console.log('[DRY-RUN] Using simulated keys');
   } else {
     privateKey = execSync('wg genkey', { encoding: 'utf-8' }).trim();
@@ -386,6 +386,7 @@ async function addPeer() {
   console.log(`[OK] Peer "${name}" added successfully`);
 
   // Generate client config
+  const serverPubKey = getServerPublicKey();
   const endpoint = getEndpoint();
 
   const clientConfig = `[Interface]
@@ -394,7 +395,7 @@ ${privateKey ? `PrivateKey = ${privateKey}
 ListenPort = 51820
 
 [Peer]
-# PublicKey = YOUR_SERVER_PUBLIC_KEY_HERE
+PublicKey = ${serverPubKey}
 AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;

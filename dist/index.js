@@ -36824,14 +36824,14 @@ function validateKey(key) {
  */
 function getServerPublicKey() {
   try {
-    const config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
+    const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
     const privKey = config.Interface && config.Interface.PrivateKey;
     if (privKey) {
       if (DRY_RUN) {
         // In dry-run mode, return simulated public key
         return 'SIMULATED_SERVER_PUBLIC_KEY_FOR_DRY_RUN';
       }
-      return execSync(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
+      return (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
     }
   } catch (e) {
     return null;
@@ -36990,7 +36990,7 @@ async function addPeer() {
   } else if (DRY_RUN) {
     // Simulate key generation in dry-run mode
     privateKey = 'YFqp2ZTX1/sU8sXXx2WJtXHJ3eKf+2tSl9ay+6E7V0w=';
-    publicKey = 'uImvhsGpF9wRQZpd2XjhvdEBCjK07DjsZ0HImcHGBAo=';
+    publicKey = 'SIMULATED_CLIENT_PUBLIC_KEY_FOR_DRY_RUN';
     console.log('[DRY-RUN] Using simulated keys');
   } else {
     privateKey = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)('wg genkey', { encoding: 'utf-8' }).trim();
@@ -37033,6 +37033,7 @@ async function addPeer() {
   console.log(`[OK] Peer "${name}" added successfully`);
 
   // Generate client config
+  const serverPubKey = getServerPublicKey();
   const endpoint = getEndpoint();
 
   const clientConfig = `[Interface]
@@ -37041,7 +37042,7 @@ ${privateKey ? `PrivateKey = ${privateKey}
 ListenPort = 51820
 
 [Peer]
-# PublicKey = YOUR_SERVER_PUBLIC_KEY_HERE
+PublicKey = ${serverPubKey}
 AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;

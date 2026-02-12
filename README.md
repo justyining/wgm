@@ -84,7 +84,7 @@ Address = 10.0.0.3/32
 ListenPort = 51820
 
 [Peer]
-# PublicKey = YOUR_SERVER_PUBLIC_KEY_HERE
+PublicKey = SERVER_PUBLIC_KEY_HERE
 AllowedIPs = 10.0.0.0/24
 Endpoint = 1.2.3.4:51820
 PersistentKeepalive = 25
@@ -97,9 +97,8 @@ PersistentKeepalive = 25
 ## Client Setup
 
 1. Copy the printed client config from terminal and save to a `.conf` file on your device
-2. Add your private key (replace `# PrivateKey = YOUR_PRIVATE_KEY_HERE`)
-3. Add server public key (replace `# PublicKey = YOUR_SERVER_PUBLIC_KEY_HERE`)
-4. Import into WireGuard app, or use command line:
+2. Add your private key to the config (replace `# PrivateKey = YOUR_PRIVATE_KEY_HERE`)
+3. Import into WireGuard app, or use command line:
    ```bash
    sudo wg-quick up ./macbook.conf
    ```
