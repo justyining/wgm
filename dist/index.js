@@ -37037,6 +37037,7 @@ async function addPeer() {
   const clientConfig = `[Interface]
 ${privateKey ? `PrivateKey = ${privateKey}
 ` : ''}Address = ${ip}
+ListenPort = 51820
 
 [Peer]
 PublicKey = ${serverPubKey}
@@ -37045,7 +37046,9 @@ Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
 
   // Print client config to terminal
-  console.log('\n' + clientConfig + '\n');
+  console.log('\n========== Client Config ==========');
+  console.log(clientConfig);
+  console.log('===================================\n');
 
   // Generate QR code
   try {
