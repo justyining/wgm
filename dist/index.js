@@ -36819,6 +36819,61 @@ function validateKey(key) {
 }
 
 /**
+ * Validate peer name
+ * @param {string} name - Peer name to validate
+ * @returns {boolean|string} - True if valid, error message otherwise
+ */
+function validatePeerName(name) {
+  if (!name || name.length === 0) {
+    return 'Name cannot be empty';
+  }
+  if (name.length > 100) {
+    return 'Name too long (max 100 characters)';
+  }
+  if (/[<>:"|?*\n\r]/.test(name)) {
+    return 'Name contains invalid characters';
+  }
+  if (name.startsWith('#')) {
+    return 'Name cannot start with #';
+  }
+  if (name.includes('Peer #')) {
+    return 'Name cannot contain "Peer #"';
+  }
+  return true;
+}
+
+/**
+ * Validate CIDR notation
+ * @param {string} cidr - CIDR string to validate (e.g., "10.0.0.0/24")
+ * @returns {boolean|string} - True if valid, error message otherwise
+ */
+function validateCIDR(cidr) {
+  if (!cidr || cidr.length === 0) {
+    return 'CIDR cannot be empty';
+  }
+  const parts = cidr.split(',').map(s => s.trim());
+  for (const part of parts) {
+    const match = part.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/);
+    if (!match) {
+      return `Invalid CIDR format: ${part}`;
+    }
+    const [, octet1, octet2, octet3, octet4, prefix] = match;
+    const octets = [octet1, octet2, octet3, octet4].map(Number);
+    const prefixNum = Number(prefix);
+
+    for (const octet of octets) {
+      if (octet > 255) {
+        return `Invalid octet (>255) in: ${part}`;
+      }
+    }
+    if (prefixNum > 32) {
+      return `Invalid prefix length (>32) in: ${part}`;
+    }
+  }
+  return true;
+}
+
+/**
  * Get server's public key from config
  * @returns {string|null} - Server public key or null if not found
  */
@@ -36886,16 +36941,15 @@ function showInitHint() {
  * @returns {string|null} - Available IP with CIDR or null
  */
 function getAvailableIP() {
-  if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(CONFIG_PATH)) {
-    showInitHint();
-    return null;
-  }
-
   let config;
   try {
     config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
   } catch (e) {
-    console.log('[ERROR] Failed to read config: ' + e.message);
+    if (e.code === 'ENOENT') {
+      showInitHint();
+    } else {
+      console.log('[ERROR] Failed to read config: ' + e.message);
+    }
     return null;
   }
 
@@ -36908,28 +36962,56 @@ function getAvailableIP() {
   }
 
   const [baseIp, cidr] = network.split('/');
-  const prefix = baseIp.split('.').slice(0, 3).join('.');
+  const cidrNum = parseInt(cidr, 10);
 
-  // Collect used IPs (handle both AllowedIPs and AllowedIps)
+  if (isNaN(cidrNum) || cidrNum < 1 || cidrNum > 32) {
+    console.log('[ERROR] Invalid CIDR: ' + cidr);
+    return null;
+  }
+
+  // Convert IP to integer
+  const ipToNum = (ip) => ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0);
+  const numToIp = (num) => [
+    (num >>> 24) & 255,
+    (num >>> 16) & 255,
+    (num >>> 8) & 255,
+    num & 255
+  ].join('.');
+
+  const baseIpNum = ipToNum(baseIp);
+  const mask = cidrNum === 0 ? 0 : (~0 << (32 - cidrNum)) >>> 0;
+  const networkNum = baseIpNum & mask;
+
+  // Calculate usable host range
+  const totalHosts = Math.pow(2, 32 - cidrNum);
+  if (cidrNum >= 31) {
+    console.log('[ERROR] CIDR /31 and /32 have no usable host addresses');
+    return null;
+  }
+
+  const firstUsable = networkNum + 1;  // Network address + 1
+  const lastUsable = networkNum + totalHosts - 2;  // -2 for network and broadcast
+
+  // Collect used IPs
   const used = new Set();
   for (const [key, val] of Object.entries(config)) {
     const allowedIPs = val.AllowedIPs || val.AllowedIps;
     if (key.startsWith('Peer') && allowedIPs) {
       const ip = allowedIPs.split('/')[0];
-      const octets = ip.split('.');
-      if (octets.length === 4) {
-        const lastOctet = parseInt(octets[3]);
-        if (!isNaN(lastOctet)) used.add(lastOctet);
+      const ipNum = ipToNum(ip);
+      if (ipNum >= firstUsable && ipNum <= lastUsable) {
+        used.add(ipNum);
       }
     }
   }
 
-  // Find first available IP (starting from .2)
-  for (let i = 2; i < 255; i++) {
-    if (!used.has(i)) {
-      return `${prefix}.${i}/32`;
+  // Find first available IP
+  for (let ipNum = firstUsable; ipNum <= lastUsable; ipNum++) {
+    if (!used.has(ipNum)) {
+      return `${numToIp(ipNum)}/32`;
     }
   }
+  console.log('[ERROR] No available IP addresses in range ' + numToIp(firstUsable) + ' - ' + numToIp(lastUsable));
   return null;
 }
 
@@ -36956,14 +37038,21 @@ function saveConfig(config) {
   }
   // Create backup
   const backupDir = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)((0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(CONFIG_PATH), 'backups');
-  if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(backupDir)) {
-    (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(backupDir, { recursive: true });
+  try {
+    (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(backupDir, { recursive: true, mode: 0o700 });
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
   }
   const backupPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(backupDir, `${(0,path__WEBPACK_IMPORTED_MODULE_5__.basename)(CONFIG_PATH)}.backup.${Date.now()}`);
-  (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
 
-  // Save new config
-  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(CONFIG_PATH, sections.join('\n'));
+  try {
+    (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
+    (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(CONFIG_PATH, sections.join('\n'));
+  } catch (e) {
+    console.log('[ERROR] Failed to save config:', e.message);
+    console.log('[INFO] Backup available at:', backupPath);
+    throw e;
+  }
 
   // Reload WireGuard (skip in dry-run mode)
   if (DRY_RUN) {
@@ -36972,8 +37061,14 @@ function saveConfig(config) {
   }
   try {
     (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`wg syncconf ${INTERFACE} <(wg-quick strip ${INTERFACE})`, { shell: 'bash', stdio: 'pipe' });
-  } catch {
-    (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`wg-quick down ${INTERFACE} 2>/dev/null; wg-quick up ${INTERFACE}`, { stdio: 'inherit' });
+  } catch (syncError) {
+    console.log('[WARN] syncconf failed, attempting restart...');
+    try {
+      (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`wg-quick down ${INTERFACE} 2>/dev/null; wg-quick up ${INTERFACE}`, { stdio: 'inherit' });
+    } catch (restartError) {
+      console.log('[ERROR] Failed to reload WireGuard:', restartError.message);
+      throw restartError;
+    }
   }
 }
 
@@ -36982,16 +37077,16 @@ function saveConfig(config) {
  */
 async function addPeer() {
   await init();
-  if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(CONFIG_PATH)) {
-    showInitHint();
-    return;
-  }
 
   let config;
   try {
     config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
   } catch (e) {
-    console.log('[ERROR] Failed to read config: ' + e.message);
+    if (e.code === 'ENOENT') {
+      showInitHint();
+    } else {
+      console.log('[ERROR] Failed to read config: ' + e.message);
+    }
     return;
   }
 
@@ -37000,7 +37095,7 @@ async function addPeer() {
     type: 'input',
     name: 'name',
     message: 'Peer name:',
-    validate: input => input.length > 0 || 'Name cannot be empty'
+    validate: validatePeerName
   }]);
 
   // Check for duplicate
@@ -37067,7 +37162,7 @@ async function addPeer() {
     name: 'allowedIPs',
     message: 'AllowedIPs (traffic to route through VPN):',
     default: serverNetwork,
-    validate: input => input.length > 0 || 'AllowedIPs cannot be empty'
+    validate: validateCIDR
   }]);
 
   // Save config
@@ -37085,7 +37180,6 @@ async function addPeer() {
   const clientConfig = `[Interface]
 ${privateKey ? `PrivateKey = ${privateKey}
 ` : '# PrivateKey = YOUR_PRIVATE_KEY_HERE\n'}Address = ${ip}
-ListenPort = 51820
 
 [Peer]
 PublicKey = ${serverPubKey}
@@ -37115,16 +37209,16 @@ PersistentKeepalive = 25`;
  */
 async function listPeers() {
   await init();
-  if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(CONFIG_PATH)) {
-    showInitHint();
-    return;
-  }
 
   let config;
   try {
     config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
   } catch (e) {
-    console.log('[ERROR] Failed to read config: ' + e.message);
+    if (e.code === 'ENOENT') {
+      showInitHint();
+    } else {
+      console.log('[ERROR] Failed to read config: ' + e.message);
+    }
     return;
   }
 
@@ -37136,7 +37230,10 @@ async function listPeers() {
     const status = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`wg show ${INTERFACE}`, { encoding: 'utf-8' });
     const matches = status.match(/peer: ([^\s]+)/g);
     onlinePeers = new Set(matches ? matches.map(p => p.replace('peer: ', '')) : []);
-  } catch {}
+  } catch (e) {
+    // WireGuard not running or interface not active
+    if (process.env.DEBUG) console.log('[DEBUG] Failed to get peer status:', e.message);
+  }
 
   const peers = Object.entries(config).filter(([k]) => k.startsWith('Peer'));
 
@@ -37160,16 +37257,16 @@ async function listPeers() {
  */
 async function removePeer(name) {
   await init();
-  if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(CONFIG_PATH)) {
-    showInitHint();
-    return;
-  }
 
   let config;
   try {
     config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
   } catch (e) {
-    console.log('[ERROR] Failed to read config: ' + e.message);
+    if (e.code === 'ENOENT') {
+      showInitHint();
+    } else {
+      console.log('[ERROR] Failed to read config: ' + e.message);
+    }
     return;
   }
   const peerKey = Object.keys(config).find(k => k === `Peer #${name}` || (config[k] && config[k].PublicKey === name));

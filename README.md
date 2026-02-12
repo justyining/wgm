@@ -81,7 +81,6 @@ Assigned IP: 10.0.0.3/32
 [Interface]
 PrivateKey = YOUR_PRIVATE_KEY_HERE
 Address = 10.0.0.3/32
-ListenPort = 51820
 
 [Peer]
 PublicKey = SERVER_PUBLIC_KEY_HERE
