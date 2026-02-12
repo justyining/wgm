@@ -27779,19 +27779,23 @@ function getEndpoint() {
 function showInitHint() {
   console.log('\n[INFO] WireGuard config not found or empty: ' + CONFIG_PATH);
   console.log('[HINT] Create a config with the following steps:\n');
-  console.log('1. Generate server keys:');
+  console.log('1. Generate server keys (in any directory):');
   console.log('   wg genkey | tee privatekey | wg pubkey > publickey');
-  console.log('\n2. Create config file:');
+  console.log('   # Private key saved in "privatekey", Public key in "publickey"');
+  console.log('\n2. Copy the private key from "privatekey" file');
+  console.log('\n3. Create config file (replace YOUR_PRIVATE_KEY with actual key):');
   console.log(`   sudo mkdir -p ${CONFIG_DIR}`);
   console.log(`   sudo tee ${CONFIG_PATH} << 'EOF'`);
   console.log('[Interface]');
   console.log('Address = 10.0.0.1/24');
   console.log('ListenPort = 51820');
-  console.log('PrivateKey = YOUR_SERVER_PRIVATE_KEY_HERE');
+  console.log('PrivateKey = YOUR_PRIVATE_KEY');
   console.log('EOF');
-  console.log('\n3. Set permissions:');
+  console.log('\n4. Set permissions:');
   console.log(`   sudo chmod 600 ${CONFIG_PATH}`);
-  console.log('\n4. Start WireGuard:');
+  console.log('\n5. Clean up local key files:');
+  console.log('   rm privatekey publickey');
+  console.log('\n6. Start WireGuard:');
   console.log(`   sudo wg-quick up ${INTERFACE || 'wg0'}`);
   console.log('');
 }
