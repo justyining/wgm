@@ -36827,6 +36827,10 @@ function getServerPublicKey() {
     const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
     const privKey = config.Interface && config.Interface.PrivateKey;
     if (privKey) {
+      if (DRY_RUN) {
+        // In dry-run mode, derive public key from private key using a placeholder
+        return 'SIMULATED_SERVER_PUBLIC_KEY_FOR_DRY_RUN';
+      }
       return (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
     }
   } catch (e) {
@@ -36936,11 +36940,7 @@ function saveConfig(config) {
   // Save new config
   (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(CONFIG_PATH, configContent);
 
-  // Reload WireGuard (skip in dry-run mode)
-  if (DRY_RUN) {
-    console.log('[DRY-RUN] Skipping WireGuard reload (config saved to ' + CONFIG_PATH + ')');
-    return;
-  }
+  // Reload WireGuard
   try {
     (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`wg syncconf ${INTERFACE} <(wg-quick strip ${INTERFACE})`, { shell: 'bash', stdio: 'pipe' });
   } catch {
@@ -37148,7 +37148,7 @@ function showHelp() {
     wgm --dry-run --config ./test.conf add
     wgm list
     wgm rm laptop
-    wgm --dry-run add      # Test without affecting real config
+    wgm --dry-run --config ./test.conf add  # Test with custom config
 
   Requirements:
     - WireGuard installed (except in --dry-run mode)
