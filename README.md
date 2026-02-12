@@ -10,7 +10,7 @@ A lightweight CLI tool for managing WireGuard peers with interactive prompts.
 - **Interactive peer management** - Add/remove peers without manual config editing
 - **Automatic IP allocation** - Finds next available IP in your network range
 - **Config backup** - Automatically backs up your WireGuard config before changes
-- **Client config generation** - Creates ready-to-use `.conf` files with QR codes
+- **Client config generation** - Prints client config to terminal with QR codes
 - **Flexible key generation** - Support for both manual (secure) and auto-generated keys
 
 ## Installation
@@ -96,7 +96,9 @@ PersistentKeepalive = 25
 ## Client Setup
 
 1. Copy the printed client config from terminal and save to a `.conf` file on your device
-2. Add your private key to the config (replace `# PrivateKey = YOUR_PRIVATE_KEY_HERE`)
+2. If you used manual key mode, replace the placeholder:
+   - Remove the `#` comment character
+   - Add your actual private key (from `wg genkey` output)
 3. Import into WireGuard app, or use command line:
    ```bash
    sudo wg-quick up ./macbook.conf
@@ -106,8 +108,25 @@ PersistentKeepalive = 25
 
 - Reads/writes `/etc/wireguard/<interface>.conf`
 - Automatically detects available WireGuard interfaces
-- Creates timestamped backups before modifications
+- Creates timestamped backups in the same directory as the config file
 - Reloads WireGuard configuration after changes
+
+## Command Line Options
+
+```bash
+wgm [command] [options]
+
+Commands:
+  add       Add a new peer
+  list      List all peers with online status
+  rm <name> Remove a peer by name or public key
+  init       Show initialization hint
+
+Options:
+  -i <name>        Specify WireGuard interface (default: auto-detect)
+  --config <path>   Use custom config file
+  --dry-run         Test mode (requires --config)
+```
 
 ## Security Notes
 
