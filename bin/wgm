@@ -60,6 +60,10 @@ const __dirname = dirname(__filename);
 // Check for dry-run/test mode
 const DRY_RUN = process.argv.includes('--dry-run') || process.argv.includes('--test');
 
+// Check for custom config file
+const configArgIndex = process.argv.indexOf('--config');
+const CUSTOM_CONFIG = configArgIndex !== -1 && process.argv[configArgIndex + 1] ? process.argv[configArgIndex + 1] : null;
+
 // Auto-elevation: re-run with sudo if not root (skip in dry-run mode)
 if (!DRY_RUN && process.getuid && process.getuid() !== 0) {
   console.log('[INFO] Requesting sudo privileges...');
@@ -75,8 +79,8 @@ if (!DRY_RUN && process.getuid && process.getuid() !== 0) {
   await new Promise(() => {});
 }
 
-// Use temp directory in dry-run mode
-const CONFIG_DIR = DRY_RUN ? '/tmp/wgm-test' : '/etc/wireguard';
+// Use custom config, temp directory in dry-run mode, or default
+const CONFIG_DIR = CUSTOM_CONFIG ? dirname(CUSTOM_CONFIG) : (DRY_RUN ? '/tmp/wgm-test' : '/etc/wireguard');
 
 // Create test directory if in dry-run mode
 import { mkdirSync } from 'fs';
@@ -154,6 +158,13 @@ AllowedIps = 10.0.0.4/32
  */
 async function init() {
   if (!INTERFACE) {
+    // Use custom config file if specified
+    if (CUSTOM_CONFIG) {
+      CONFIG_PATH = CUSTOM_CONFIG;
+      INTERFACE = 'custom';
+      console.log(`[INFO] Using custom config: ${CUSTOM_CONFIG}`);
+      return;
+    }
     INTERFACE = await getInterface();
     CONFIG_PATH = join(CONFIG_DIR, `${INTERFACE}.conf`);
   }
@@ -457,15 +468,17 @@ function showHelp() {
   wgm - Simplified WireGuard Peer Management
 
   Usage:
-    wgm add                Add a new peer interactively
-    wgm list               List all peers
-    wgm rm <name>          Remove a peer
-    wgm -i <name>          Specify interface (default: auto-detect)
-    wgm --dry-run          Test mode (no sudo/wg required)
+    wgm add                        Add a new peer interactively
+    wgm list                       List all peers
+    wgm rm <name>                  Remove a peer
+    wgm -i <name>                  Specify interface (default: auto-detect)
+    wgm --dry-run                  Test mode (no sudo/wg required)
+    wgm --config <path>            Use custom config file (with --dry-run)
 
   Examples:
     wgm add
     wgm -i wg1 add
+    wgm --dry-run --config ./test.conf add
     wgm list
     wgm rm laptop
     wgm --dry-run add      # Test without affecting real config
@@ -481,8 +494,18 @@ function showHelp() {
  * Main entry point
  */
 async function main() {
-  // Handle --dry-run flag position
-  const args = process.argv.slice(2).filter(arg => arg !== '--dry-run' && arg !== '--test');
+  // Handle --dry-run and --config flags
+  const allArgs = process.argv.slice(2);
+  const args = [];
+  for (let i = 0; i < allArgs.length; i++) {
+    const arg = allArgs[i];
+    if (arg === '--dry-run' || arg === '--test') continue;
+    if (arg === '--config') {
+      i++; // Skip the next argument (config path)
+      continue;
+    }
+    args.push(arg);
+  }
   const cmd = args[0];
 
   if (DRY_RUN) {
