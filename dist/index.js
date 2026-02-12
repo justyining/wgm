@@ -36824,14 +36824,14 @@ function validateKey(key) {
  */
 function getServerPublicKey() {
   try {
-    const config = parseWireGuardConfig((0,fs__WEBPACK_IMPORTED_MODULE_3__.readFileSync)(CONFIG_PATH, 'utf-8'));
+    const config = parseWireGuardConfig(readFileSync(CONFIG_PATH, 'utf-8'));
     const privKey = config.Interface && config.Interface.PrivateKey;
     if (privKey) {
       if (DRY_RUN) {
         // In dry-run mode, return simulated public key
         return 'SIMULATED_SERVER_PUBLIC_KEY_FOR_DRY_RUN';
       }
-      return (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
+      return execSync(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
     }
   } catch (e) {
     return null;
@@ -37033,7 +37033,6 @@ async function addPeer() {
   console.log(`[OK] Peer "${name}" added successfully`);
 
   // Generate client config
-  const serverPubKey = getServerPublicKey();
   const endpoint = getEndpoint();
 
   const clientConfig = `[Interface]
@@ -37042,7 +37041,7 @@ ${privateKey ? `PrivateKey = ${privateKey}
 ListenPort = 51820
 
 [Peer]
-PublicKey = ${serverPubKey}
+# PublicKey = YOUR_SERVER_PUBLIC_KEY_HERE
 AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;

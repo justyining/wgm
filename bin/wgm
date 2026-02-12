@@ -386,7 +386,6 @@ async function addPeer() {
   console.log(`[OK] Peer "${name}" added successfully`);
 
   // Generate client config
-  const serverPubKey = getServerPublicKey();
   const endpoint = getEndpoint();
 
   const clientConfig = `[Interface]
@@ -395,7 +394,7 @@ ${privateKey ? `PrivateKey = ${privateKey}
 ListenPort = 51820
 
 [Peer]
-PublicKey = ${serverPubKey}
+# PublicKey = YOUR_SERVER_PUBLIC_KEY_HERE
 AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
