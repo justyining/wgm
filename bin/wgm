@@ -353,6 +353,7 @@ function getAvailableIP() {
 
   // Collect used IPs
   const used = new Set();
+  used.add(baseIpNum);  // Mark server's own IP as used
   for (const [key, val] of Object.entries(config)) {
     const allowedIPs = val.AllowedIPs || val.AllowedIps;
     if (key.startsWith('Peer') && allowedIPs) {
