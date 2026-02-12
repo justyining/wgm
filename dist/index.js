@@ -37036,7 +37036,7 @@ async function addPeer() {
 
   const clientConfig = `[Interface]
 ${privateKey ? `PrivateKey = ${privateKey}
-` : ''}Address = ${ip}
+` : '# PrivateKey = YOUR_PRIVATE_KEY_HERE\n'}Address = ${ip}
 ListenPort = 51820
 
 [Peer]
