@@ -36989,7 +36989,7 @@ async function addPeer() {
     publicKey = key.trim();
   } else if (DRY_RUN) {
     // Simulate key generation in dry-run mode
-    privateKey = 'YFqp2ZTX1/sU8sXXx2WJtXHJ3eKf+2tSl9ay+6E7V0w=';
+    privateKey = 'SIMULATED_PRIVATE_KEY_FOR_DRY_RUN_ONLY';
     publicKey = 'SIMULATED_CLIENT_PUBLIC_KEY_FOR_DRY_RUN';
     console.log('[DRY-RUN] Using simulated keys');
   } else {
