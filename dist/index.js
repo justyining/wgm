@@ -36828,7 +36828,7 @@ function getServerPublicKey() {
     const privKey = config.Interface && config.Interface.PrivateKey;
     if (privKey) {
       if (DRY_RUN) {
-        // In dry-run mode, derive public key from private key using a placeholder
+        // In dry-run mode, return simulated public key
         return 'SIMULATED_SERVER_PUBLIC_KEY_FOR_DRY_RUN';
       }
       return (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`echo "${privKey}" | wg pubkey`, { encoding: 'utf-8' }).trim();
@@ -36919,16 +36919,6 @@ function saveConfig(config) {
     }
     sections.push('');
   }
-  const configContent = sections.join('\n');
-
-  // In dry-run mode, only show what would be saved
-  if (DRY_RUN) {
-    console.log('[DRY-RUN] Would save config to:', CONFIG_PATH);
-    console.log('[DRY-RUN] Config content:\n');
-    console.log(configContent);
-    return;
-  }
-
   // Create backup
   const backupDir = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)((0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(CONFIG_PATH), 'backups');
   if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(backupDir)) {
@@ -36938,9 +36928,13 @@ function saveConfig(config) {
   (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
 
   // Save new config
-  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(CONFIG_PATH, configContent);
+  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(CONFIG_PATH, sections.join('\n'));
 
-  // Reload WireGuard
+  // Reload WireGuard (skip in dry-run mode)
+  if (DRY_RUN) {
+    console.log('[DRY-RUN] Skipping WireGuard reload');
+    return;
+  }
   try {
     (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`wg syncconf ${INTERFACE} <(wg-quick strip ${INTERFACE})`, { shell: 'bash', stdio: 'pipe' });
   } catch {
@@ -37052,23 +37046,17 @@ AllowedIPs = ${allowedIPs}
 Endpoint = ${endpoint}
 PersistentKeepalive = 25`;
 
-  // Save client config or show in dry-run mode
-  if (DRY_RUN) {
-    console.log('[DRY-RUN] Client config:');
-    console.log(clientConfig);
-  } else {
-    // Save to file
-    const filename = `${name}.conf`;
-    (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(filename, clientConfig);
-    console.log(`[FILE] Config saved: ${filename}`);
+  // Save to file
+  const filename = `${name}.conf`;
+  (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(filename, clientConfig);
+  console.log(`[FILE] Config saved: ${filename}`);
 
-    // Generate QR code
-    try {
-      const qr = await qrcode__WEBPACK_IMPORTED_MODULE_2__.toString(clientConfig, { type: 'terminal', small: true });
-      console.log('\n[QR] QR Code:');
-      console.log(qr);
-    } catch {}
-  }
+  // Generate QR code
+  try {
+    const qr = await qrcode__WEBPACK_IMPORTED_MODULE_2__.toString(clientConfig, { type: 'terminal', small: true });
+    console.log('\n[QR] QR Code:');
+    console.log(qr);
+  } catch {}
 
   if (privateKey) {
     console.log('\n[WARN] Private key generated. Keep it safe!');
