@@ -36711,6 +36711,13 @@ const DRY_RUN = process.argv.includes('--dry-run') || process.argv.includes('--t
 const configArgIndex = process.argv.indexOf('--config');
 const CUSTOM_CONFIG = configArgIndex !== -1 && process.argv[configArgIndex + 1] ? process.argv[configArgIndex + 1] : null;
 
+// Dry-run requires --config
+if (DRY_RUN && !CUSTOM_CONFIG) {
+  console.log('[ERROR] --dry-run requires --config <path>');
+  console.log('Usage: wgm --dry-run --config /path/to/wg.conf add');
+  process.exit(1);
+}
+
 // Auto-elevation: re-run with sudo if not root (skip in dry-run mode)
 if (!DRY_RUN && process.getuid && process.getuid() !== 0) {
   console.log('[INFO] Requesting sudo privileges...');
@@ -36726,15 +36733,8 @@ if (!DRY_RUN && process.getuid && process.getuid() !== 0) {
   await new Promise(() => {});
 }
 
-// Use custom config, temp directory in dry-run mode, or default
-const CONFIG_DIR = CUSTOM_CONFIG ? (0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(CUSTOM_CONFIG) : (DRY_RUN ? '/tmp/wgm-test' : '/etc/wireguard');
-
-// Create test directory if in dry-run mode
-
-if (DRY_RUN && !(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(CONFIG_DIR)) {
-  console.log('[DRY-RUN] Creating test directory:', CONFIG_DIR);
-  (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(CONFIG_DIR, { recursive: true });
-}
+// Use custom config or default
+const CONFIG_DIR = CUSTOM_CONFIG ? (0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(CUSTOM_CONFIG) : '/etc/wireguard';
 
 let INTERFACE = null;
 let CONFIG_PATH = null;
@@ -36755,31 +36755,6 @@ async function getInterface() {
     const output = (0,child_process__WEBPACK_IMPORTED_MODULE_0__.execSync)(`ls ${CONFIG_DIR}/*.conf 2>/dev/null | xargs -n1 basename`, { encoding: 'utf-8' });
     const configs = output.trim().split('\n').filter(c => c && c.endsWith('.conf'));
     if (configs.length === 0) {
-      // In dry-run mode, create a test config
-      if (DRY_RUN) {
-        console.log('[DRY-RUN] Creating test WireGuard config...');
-        const testKey = 'YFqp2ZTX1/sU8sXXx2WJtXHJ3eKf+2tSl9ay+6E7V0w='; // fake key for testing
-        const testConfigPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(CONFIG_DIR, 'wg0.conf');
-        (0,fs__WEBPACK_IMPORTED_MODULE_3__.writeFileSync)(testConfigPath, `[Interface]
-Address = 10.0.0.1/24
-ListenPort = 51820
-PrivateKey = ${testKey}
-
-[Peer]
-PublicKey = ntCW8Oz662SaHcKnMC5P8SJIFqsbziA1xCmmfuz5gGU=
-AllowedIps = 10.0.0.2/32
-
-[Peer]
-PublicKey = 5PmgMaU9mvIuOqxein4f6XhDd+0uauV0MG4g3ka8K0A=
-AllowedIps = 10.0.0.3/32
-
-[Peer]
-PublicKey = uImvhsGpF9wRQZpd2XjhvdEBCjK07DjsZ0HImcHGBAo=
-AllowedIps = 10.0.0.4/32
-
-`);
-        return 'wg0';
-      }
       console.log('[ERROR] No WireGuard configs found in ' + CONFIG_DIR);
       process.exit(1);
     }
