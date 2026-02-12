@@ -1,6 +1,6 @@
 {
   "name": "wgm",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "description": "Simplified WireGuard Peer Management Tool",
   "main": "dist/index.js",
   "bin": {
