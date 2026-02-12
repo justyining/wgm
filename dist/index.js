@@ -37033,12 +37033,10 @@ async function addPeer() {
   // Generate client config
   const serverPubKey = getServerPublicKey();
   const endpoint = getEndpoint();
-  const dns = (config.Interface && config.Interface.DNS) || '1.1.1.1, 8.8.8.8';
 
   const clientConfig = `[Interface]
 ${privateKey ? `PrivateKey = ${privateKey}
 ` : ''}Address = ${ip}
-DNS = ${dns}
 
 [Peer]
 PublicKey = ${serverPubKey}
