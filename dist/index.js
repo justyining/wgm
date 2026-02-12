@@ -37018,7 +37018,7 @@ async function addPeer() {
     type: 'input',
     name: 'allowedIPs',
     message: 'AllowedIPs (traffic to route through VPN):',
-    default: `${serverIp}/32`,
+    default: `10.0.0.0/24`,
     validate: input => input.length > 0 || 'AllowedIPs cannot be empty'
   }]);
 
