@@ -36661,7 +36661,7 @@ __nccwpck_require__.a(module, async (__webpack_handle_async_dependencies__, __we
 
 
 /**
- * Parse WireGuard config file (handles multiple [Peer] sections)
+ * Parse WireGuard config file (handles multiple [Peer] sections with comments)
  * @param {string} content - Config file content
  * @returns {Object} - Parsed config with unique keys for each peer
  */
@@ -36670,18 +36670,35 @@ function parseWireGuardConfig(content) {
   const config = {};
   let currentSection = null;
   let peerIndex = 0;
+  let pendingPeerName = null;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
+    if (!trimmed) continue;
+
+    // Comment line - might be a peer name
+    if (trimmed.startsWith('#')) {
+      const comment = trimmed.slice(1).trim();
+      // Check if next line is [Peer]
+      const nextLine = lines[i + 1] ? lines[i + 1].trim() : '';
+      if (nextLine === '[Peer]') {
+        pendingPeerName = comment;
+      }
+      continue;
+    }
 
     // Section header
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      currentSection = trimmed.slice(1, -1);
-      if (currentSection === 'Peer') {
-        // Use unique key for each peer
-        currentSection = `Peer #${peerIndex}`;
+      const sectionName = trimmed.slice(1, -1);
+      if (sectionName === 'Peer') {
+        // Use comment as peer name if available, otherwise use index
+        const peerName = pendingPeerName || `unnamed-${peerIndex}`;
+        currentSection = `Peer #${peerName}`;
         peerIndex++;
+        pendingPeerName = null;
+      } else {
+        currentSection = sectionName;
       }
       if (!config[currentSection]) {
         config[currentSection] = {};
@@ -36883,13 +36900,24 @@ function getAvailableIP() {
  */
 function saveConfig(config) {
   // Create backup
-  const backupPath = `${CONFIG_PATH}.backup.${Date.now()}`;
+  const backupDir = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)((0,path__WEBPACK_IMPORTED_MODULE_5__.dirname)(CONFIG_PATH), 'backups');
+  if (!(0,fs__WEBPACK_IMPORTED_MODULE_3__.existsSync)(backupDir)) {
+    (0,fs__WEBPACK_IMPORTED_MODULE_3__.mkdirSync)(backupDir, { recursive: true });
+  }
+  const backupPath = (0,path__WEBPACK_IMPORTED_MODULE_5__.join)(backupDir, `${(0,fs__WEBPACK_IMPORTED_MODULE_3__.basename)(CONFIG_PATH)}.backup.${Date.now()}`);
   (0,fs__WEBPACK_IMPORTED_MODULE_3__.copyFileSync)(CONFIG_PATH, backupPath);
 
-  // Save new config (manual INI format for compatibility)
+  // Save new config (WireGuard standard format)
   const sections = [];
   for (const [key, val] of Object.entries(config)) {
-    sections.push(`[${key}]`);
+    if (key.startsWith('Peer #')) {
+      // Peer name as comment, standard [Peer] section
+      const peerName = key.replace('Peer #', '');
+      sections.push(`# ${peerName}`);
+      sections.push('[Peer]');
+    } else {
+      sections.push(`[${key}]`);
+    }
     for (const [k, v] of Object.entries(val)) {
       sections.push(`${k} = ${v}`);
     }
